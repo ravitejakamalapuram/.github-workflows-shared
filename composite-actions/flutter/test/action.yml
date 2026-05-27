@@ -19,6 +19,10 @@ inputs:
     description: 'Specific test file or directory to run'
     required: false
     default: ''
+  exclude-tags:
+    description: 'Tags to exclude from tests (e.g., golden,integration)'
+    required: false
+    default: ''
   extra-args:
     description: 'Additional flutter test arguments'
     required: false
@@ -41,11 +45,12 @@ runs:
         TEST_ARGS=""
         [ "${{ inputs.coverage }}" == "true" ] && TEST_ARGS="$TEST_ARGS --coverage"
         [ -n "${{ inputs.test-path }}" ] && TEST_ARGS="$TEST_ARGS ${{ inputs.test-path }}"
-        
+        [ -n "${{ inputs.exclude-tags }}" ] && TEST_ARGS="$TEST_ARGS --exclude-tags=${{ inputs.exclude-tags }}"
+
         echo "::group::Flutter Test"
         flutter test $TEST_ARGS ${{ inputs.extra-args }}
         echo "::endgroup::"
-        
+
         echo "✅ All tests passed"
       shell: bash
     

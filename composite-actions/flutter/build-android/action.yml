@@ -31,6 +31,22 @@ inputs:
     description: 'Additional flutter build arguments'
     required: false
     default: ''
+  keystore-base64:
+    description: 'Base64 encoded keystore file (for signing)'
+    required: false
+    default: ''
+  keystore-password:
+    description: 'Keystore password'
+    required: false
+    default: ''
+  key-alias:
+    description: 'Key alias'
+    required: false
+    default: ''
+  key-password:
+    description: 'Key password'
+    required: false
+    default: ''
 
 outputs:
   artifact-path:
@@ -43,11 +59,31 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Setup Signing
+      if: inputs.keystore-base64 != ''
+      run: |
+        echo "::group::Setup Android Signing"
+
+        # Decode and save keystore
+        echo "${{ inputs.keystore-base64 }}" | base64 -d > android/upload-keystore.jks
+
+        # Create key.properties file
+        cat > android/key.properties << 'EOF'
+        storePassword=${{ inputs.keystore-password }}
+        keyPassword=${{ inputs.key-password }}
+        keyAlias=${{ inputs.key-alias }}
+        storeFile=upload-keystore.jks
+        EOF
+
+        echo "✅ Signing configuration created"
+        echo "::endgroup::"
+      shell: bash
+
     - name: Build Flutter Android
       id: build
       run: |
         set -e
-        
+
         BUILD_CMD="flutter build ${{ inputs.build-type }}"
         
         # Add build mode

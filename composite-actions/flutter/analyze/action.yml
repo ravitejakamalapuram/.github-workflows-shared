@@ -23,6 +23,10 @@ inputs:
     description: 'Check for navigation logic in domain layer'
     required: false
     default: 'true'
+  security-checks:
+    description: 'Run security vulnerability checks'
+    required: false
+    default: 'true'
 
 outputs:
   analyze-status:
@@ -48,7 +52,47 @@ runs:
         
         echo "✅ Flutter analyze passed"
       shell: bash
-    
+
+    - name: Security Checks
+      id: security
+      if: inputs.security-checks == 'true'
+      run: |
+        echo "::group::Security Checks"
+
+        VIOLATIONS=0
+
+        # Check for disabled SSL verification
+        echo "Checking for disabled SSL verification..."
+        if grep -rn "badCertificateCallback\|allowInsecure" lib/ --include="*.dart" 2>/dev/null; then
+          echo "::error::❌ Found disabled SSL verification"
+          echo "::error::SSL verification must not be disabled in production code"
+          VIOLATIONS=$((VIOLATIONS + 1))
+        else
+          echo "✅ No disabled SSL verification found"
+        fi
+
+        # Check for print statements in production code
+        echo "Checking for print statements in production code..."
+        if grep -rn "^[^/]*print(" lib/ --include="*.dart" | grep -v "_test.dart" | grep -v "debugPrint" 2>/dev/null; then
+          echo "::error::❌ Found print statements in production code"
+          echo "::error::Use debugPrint, log, or a proper logging framework instead"
+          VIOLATIONS=$((VIOLATIONS + 1))
+        else
+          echo "✅ No print statements in production code"
+        fi
+
+        echo "::endgroup::"
+
+        if [ $VIOLATIONS -gt 0 ]; then
+          echo "::error::❌ Found $VIOLATIONS security violation(s)"
+          echo "## ❌ Security Violations" >> $GITHUB_STEP_SUMMARY
+          echo "Found **$VIOLATIONS** security issue(s). See logs for details." >> $GITHUB_STEP_SUMMARY
+          exit 1
+        else
+          echo "✅ All security checks passed"
+        fi
+      shell: bash
+
     - name: Architecture Validation
       id: architecture
       if: inputs.architecture-checks == 'true'
