@@ -89,8 +89,9 @@ runs:
             ]
           }')
 
-        echo "🚀 Sending Slack Webhook payload..."
-        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "$SLACK_WEBHOOK_URL")
+        echo "🚀 Sending Slack Webhook payload (bypassing SSL verification if needed)..."
+        # Using curl with -k/--insecure to support self-hosted runners with broken CA certificates
+        RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "$SLACK_WEBHOOK_URL")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         BODY=$(echo "$RESPONSE" | sed '$d')
