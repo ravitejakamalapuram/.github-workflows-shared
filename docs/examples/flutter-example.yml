@@ -1,0 +1,171 @@
+# Example Flutter CI/CD Workflow
+# This example shows how to use centralized actions for a Flutter project
+
+name: Flutter CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Prevent concurrent builds
+concurrency:
+  group: flutter-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # CI: Continuous Integration
+  ci:
+    name: Analyze & Test
+    runs-on: self-hosted  # Use self-hosted runner for Flutter
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter Environment
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/flutter/setup@v1
+        with:
+          flutter-channel: 'stable'
+          cache-pub: 'true'
+          fix-corrupted-cache: 'true'
+      
+      - name: Run Flutter Analyzer
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/flutter/analyze@v1
+        with:
+          fatal-warnings: 'true'
+          architecture-checks: 'true'
+          check-api-in-widgets: 'true'
+          check-navigation-in-domain: 'true'
+          check-ui-in-domain: 'true'
+      
+      - name: Run Flutter Tests
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/flutter/test@v1
+        with:
+          coverage: 'true'
+          upload-coverage: 'false'
+          coverage-threshold: 0
+  
+  # Build Android (on successful CI)
+  build-android:
+    name: Build Android
+    runs-on: self-hosted
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter Environment
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/flutter/setup@v1
+        with:
+          flutter-channel: 'stable'
+      
+      - name: Build Android App Bundle
+        id: build-android
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/flutter/build-android@v1
+        with:
+          build-type: 'appbundle'
+          flavor: ''
+          obfuscate: 'true'
+          split-per-abi: 'false'
+          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: ${{ steps.build-android.outputs.build-path }}
+          retention-days: 7
+  
+  # Build iOS (requires macOS runner)
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter Environment
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/flutter/setup@v1
+        with:
+          flutter-channel: 'stable'
+      
+      - name: Build iOS App
+        id: build-ios
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/flutter/build-ios@v1
+        with:
+          codesign: 'true'
+          obfuscate: 'true'
+          export-method: 'app-store'
+          certificate-base64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          certificate-password: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          provisioning-profile-base64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      
+      - name: Upload iOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release
+          path: ${{ steps.build-ios.outputs.ipa-path }}
+          retention-days: 7
+  
+  # Release (create GitHub release with all artifacts)
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-android, build-ios]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: ./artifacts/android
+      
+      - name: Download iOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-release
+          path: ./artifacts/ios
+      
+      - name: Generate Changelog
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/common/changelog@v1
+        with:
+          output-file: 'CHANGELOG.md'
+          format: 'markdown'
+      
+      - name: Bump Version
+        id: version
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/common/version-bump@v1
+        with:
+          bump-type: 'auto'
+          tag-prefix: 'v'
+          push-tag: 'true'
+      
+      - name: Create GitHub Release
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/common/create-release@v1
+        with:
+          tag-name: ${{ steps.version.outputs.new-tag }}
+          release-name: 'Release ${{ steps.version.outputs.new-tag }}'
+          body-file: 'CHANGELOG.md'
+          files: |
+            ./artifacts/android/**/*.aab
+            ./artifacts/ios/**/*.ipa

@@ -1,0 +1,139 @@
+name: 'Generate Changelog'
+description: 'Generates changelog from git commit history'
+author: 'Your Organization'
+
+inputs:
+  output-file:
+    description: 'Output file for changelog'
+    required: false
+    default: 'CHANGELOG.md'
+  commit-range:
+    description: 'Git commit range (e.g., v1.0.0..HEAD or auto for automatic detection)'
+    required: false
+    default: 'auto'
+  format:
+    description: 'Output format (markdown or text)'
+    required: false
+    default: 'markdown'
+  group-by:
+    description: 'Group commits by type (conventional-commits or none)'
+    required: false
+    default: 'conventional-commits'
+  include-authors:
+    description: 'Include commit authors'
+    required: false
+    default: 'true'
+
+outputs:
+  changelog-content:
+    description: 'Generated changelog content'
+    value: ${{ steps.generate.outputs.content }}
+  changes-file:
+    description: 'Path to the generated changelog file'
+    value: ${{ inputs.output-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine Commit Range
+      id: range
+      run: |
+        if [ "${{ inputs.commit-range }}" == "auto" ]; then
+          # Auto-detect range
+          PREV_SHA="${{ github.event.before }}"
+          CURR_SHA="${{ github.event.after }}"
+          
+          if [ "$PREV_SHA" == "0000000000000000000000000000000000000000" ] || [ -z "$PREV_SHA" ]; then
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ -n "$LAST_TAG" ]; then
+              RANGE="$LAST_TAG..HEAD"
+            else
+              RANGE="HEAD~10..HEAD"
+            fi
+          else
+            RANGE="$PREV_SHA..$CURR_SHA"
+          fi
+        else
+          RANGE="${{ inputs.commit-range }}"
+        fi
+        
+        echo "range=$RANGE" >> $GITHUB_OUTPUT
+        echo "📊 Using commit range: $RANGE"
+      shell: bash
+    
+    - name: Generate Changelog
+      id: generate
+      run: |
+        RANGE="${{ steps.range.outputs.range }}"
+        
+        echo "::group::Generating Changelog"
+        
+        if [ "${{ inputs.group-by }}" == "conventional-commits" ]; then
+          # Group by conventional commit types
+          {
+            echo "## 🚀 Features"
+            git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE | grep "^- feat" || echo "  _No new features_"
+            echo ""
+            echo "## 🐛 Bug Fixes"
+            git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE | grep "^- fix" || echo "  _No bug fixes_"
+            echo ""
+            echo "## 📝 Documentation"
+            git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE | grep "^- docs" || echo "  _No documentation changes_"
+            echo ""
+            echo "## 🔧 Other Changes"
+            git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE | grep -v "^- feat\|^- fix\|^- docs" || echo "  _No other changes_"
+          } > temp_changelog.md
+        else
+          # Simple list
+          git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE > temp_changelog.md
+        fi
+        
+        CONTENT=$(cat temp_changelog.md)
+        
+        if [ -z "$CONTENT" ]; then
+          CONTENT="- Routine maintenance and updates"
+          echo "$CONTENT" > temp_changelog.md
+        fi
+        
+        echo "::endgroup::"
+        echo "✅ Changelog generated"
+        
+        # Save for output (escape for multiline)
+        {
+          echo 'content<<EOF'
+          cat temp_changelog.md
+          echo EOF
+        } >> $GITHUB_OUTPUT
+      shell: bash
+    
+    - name: Update Changelog File
+      run: |
+        DATE=$(date +"%Y-%m-%d")
+        
+        # Create or update main changelog
+        if [ ! -f "${{ inputs.output-file }}" ]; then
+          echo "# Changelog" > "${{ inputs.output-file }}"
+          echo "" >> "${{ inputs.output-file }}"
+        fi
+        
+        # Prepend new changes
+        {
+          echo "## [$DATE]"
+          echo ""
+          cat temp_changelog.md
+          echo ""
+          tail -n +2 "${{ inputs.output-file }}" || true
+        } > temp_full_changelog.md
+        
+        echo "# Changelog" > "${{ inputs.output-file }}"
+        echo "" >> "${{ inputs.output-file }}"
+        cat temp_full_changelog.md >> "${{ inputs.output-file }}"
+        
+        rm -f temp_changelog.md temp_full_changelog.md
+        
+        echo "✅ Changelog file updated: ${{ inputs.output-file }}"
+      shell: bash
+
+branding:
+  icon: 'file-text'
+  color: 'blue'

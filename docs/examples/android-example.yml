@@ -1,0 +1,129 @@
+# Example Android CI/CD Workflow
+# This example shows how to use centralized actions for an Android project
+
+name: Android CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Prevent concurrent builds
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # CI: Continuous Integration
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Android Environment
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@v1
+        with:
+          java-version: '17'
+          gradle-cache: 'true'
+      
+      - name: Run Unit Tests
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/test@v1
+        with:
+          test-task: 'test'
+          upload-reports: 'true'
+      
+      # Optional: Validate Chrome Extension if your project has one
+      - name: Validate Chrome Extension
+        if: hashFiles('chrome-extension/manifest.json') != ''
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/chrome-extension/validate@v1
+        with:
+          extension-dir: 'chrome-extension'
+  
+  # CD: Continuous Delivery (only on main branch)
+  cd:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    permissions:
+      contents: write  # For creating releases
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for changelog
+      
+      - name: Setup Android Environment
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@v1
+        with:
+          java-version: '17'
+      
+      - name: Generate Changelog
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/common/changelog@v1
+        with:
+          output-file: 'CHANGELOG.md'
+          format: 'markdown'
+      
+      - name: Bump Version
+        id: version
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/common/version-bump@v1
+        with:
+          bump-type: 'auto'  # Detect from commit messages
+          tag-prefix: 'v'
+          push-tag: 'true'
+      
+      - name: Build Release APK
+        id: build-apk
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/build-apk@v1
+        with:
+          build-type: 'release'
+          version-code: ${{ steps.version.outputs.new-version }}
+          keystore-base64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.KEYSTORE_PASSWORD }}
+          key-alias: ${{ secrets.KEY_ALIAS }}
+          key-password: ${{ secrets.KEY_PASSWORD }}
+      
+      - name: Build Release Bundle (AAB)
+        id: build-aab
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/build-bundle@v1
+        with:
+          version-code: ${{ steps.version.outputs.new-version }}
+          keystore-base64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.KEYSTORE_PASSWORD }}
+          key-alias: ${{ secrets.KEY_ALIAS }}
+          key-password: ${{ secrets.KEY_PASSWORD }}
+      
+      - name: Package Chrome Extension
+        if: hashFiles('chrome-extension/manifest.json') != ''
+        id: package-extension
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/chrome-extension/package@v1
+        with:
+          extension-dir: 'chrome-extension'
+          output-name: 'extension'
+      
+      - name: Create GitHub Release
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/common/create-release@v1
+        with:
+          tag-name: ${{ steps.version.outputs.new-tag }}
+          release-name: 'Release ${{ steps.version.outputs.new-tag }}'
+          body-file: 'CHANGELOG.md'
+          files: |
+            ${{ steps.build-apk.outputs.apk-path }}
+            ${{ steps.build-aab.outputs.aab-path }}
+            ${{ steps.package-extension.outputs.package-path }}
+      
+      - name: Deploy to Google Play (Alpha Track)
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/deploy-play@v1
+        with:
+          service-account-json: ${{ secrets.PLAY_SERVICE_ACCOUNT_KEY }}
+          package-name: 'com.example.yourapp'
+          aab-path: ${{ steps.build-aab.outputs.aab-path }}
+          track: 'alpha'
+          release-status: 'completed'

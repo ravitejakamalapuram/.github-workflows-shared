@@ -1,0 +1,139 @@
+name: 'Version Bump'
+description: 'Bumps version number using semantic versioning'
+author: 'Your Organization'
+
+inputs:
+  bump-type:
+    description: 'Version bump type (major, minor, patch, or auto)'
+    required: false
+    default: 'patch'
+  tag-prefix:
+    description: 'Prefix for git tags'
+    required: false
+    default: 'v'
+  initial-version:
+    description: 'Initial version if no tags exist'
+    required: false
+    default: '1.0.0'
+  push-tag:
+    description: 'Automatically push the new tag'
+    required: false
+    default: 'false'
+
+outputs:
+  new-version:
+    description: 'New version number (without prefix)'
+    value: ${{ steps.bump.outputs.version }}
+  new-tag:
+    description: 'New git tag (with prefix)'
+    value: ${{ steps.bump.outputs.tag }}
+  previous-version:
+    description: 'Previous version number'
+    value: ${{ steps.bump.outputs.prev_version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch Tags
+      run: |
+        git fetch --tags --force
+      shell: bash
+    
+    - name: Determine Version Bump Type
+      id: detect-bump
+      run: |
+        BUMP_TYPE="${{ inputs.bump-type }}"
+        
+        if [ "$BUMP_TYPE" == "auto" ]; then
+          # Auto-detect from commit messages
+          COMMITS=$(git log $(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~10")..HEAD --pretty=%s)
+          
+          if echo "$COMMITS" | grep -q "^BREAKING CHANGE:\|^feat!:\|^fix!:"; then
+            BUMP_TYPE="major"
+          elif echo "$COMMITS" | grep -q "^feat:"; then
+            BUMP_TYPE="minor"
+          else
+            BUMP_TYPE="patch"
+          fi
+          
+          echo "🤖 Auto-detected bump type: $BUMP_TYPE"
+        fi
+        
+        echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+      shell: bash
+    
+    - name: Calculate New Version
+      id: bump
+      run: |
+        # Get latest tag
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [ -z "$LATEST_TAG" ]; then
+          # No tags exist, use initial version
+          PREV_VERSION="${{ inputs.initial-version }}"
+        else
+          # Remove prefix from tag
+          PREV_VERSION=${LATEST_TAG#${{ inputs.tag-prefix }}}
+        fi
+        
+        echo "prev_version=$PREV_VERSION" >> $GITHUB_OUTPUT
+        echo "Previous version: $PREV_VERSION"
+        
+        # Parse version components
+        IFS='.' read -ra VERSION_PARTS <<< "$PREV_VERSION"
+        MAJOR=${VERSION_PARTS[0]:-0}
+        MINOR=${VERSION_PARTS[1]:-0}
+        PATCH=${VERSION_PARTS[2]:-0}
+        
+        # Bump version based on type
+        BUMP_TYPE="${{ steps.detect-bump.outputs.bump_type }}"
+        
+        case $BUMP_TYPE in
+          major)
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            ;;
+          minor)
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            ;;
+          patch)
+            PATCH=$((PATCH + 1))
+            ;;
+          *)
+            echo "::error::Invalid bump type: $BUMP_TYPE"
+            exit 1
+            ;;
+        esac
+        
+        NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+        NEW_TAG="${{ inputs.tag-prefix }}$NEW_VERSION"
+        
+        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+        
+        echo "✅ New version: $NEW_VERSION (tag: $NEW_TAG)"
+        
+        echo "## 🔖 Version Bump" >> $GITHUB_STEP_SUMMARY
+        echo "- **Previous**: $PREV_VERSION" >> $GITHUB_STEP_SUMMARY
+        echo "- **New**: $NEW_VERSION" >> $GITHUB_STEP_SUMMARY
+        echo "- **Bump Type**: $BUMP_TYPE" >> $GITHUB_STEP_SUMMARY
+      shell: bash
+    
+    - name: Create Git Tag
+      run: |
+        git tag ${{ steps.bump.outputs.tag }}
+        echo "✅ Created tag: ${{ steps.bump.outputs.tag }}"
+      shell: bash
+    
+    - name: Push Tag
+      if: inputs.push-tag == 'true'
+      run: |
+        git push origin ${{ steps.bump.outputs.tag }}
+        echo "✅ Pushed tag: ${{ steps.bump.outputs.tag }}"
+      shell: bash
+
+branding:
+  icon: 'tag'
+  color: 'green'

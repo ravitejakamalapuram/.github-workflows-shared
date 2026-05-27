@@ -1,0 +1,104 @@
+name: 'Lint Chrome Extension'
+description: 'Runs ESLint on Chrome extension JavaScript files'
+author: 'Your Organization'
+
+inputs:
+  extension-dir:
+    description: 'Directory containing extension files'
+    required: false
+    default: 'extension'
+  max-warnings:
+    description: 'Maximum number of warnings allowed'
+    required: false
+    default: '0'
+  fix:
+    description: 'Auto-fix linting issues'
+    required: false
+    default: 'false'
+  config-file:
+    description: 'Path to ESLint config file'
+    required: false
+    default: ''
+  ignore-pattern:
+    description: 'Patterns to ignore (space-separated)'
+    required: false
+    default: 'node_modules/** dist/** build/**'
+
+outputs:
+  lint-status:
+    description: 'Lint status (success/failure)'
+    value: ${{ steps.lint.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check for ESLint config
+      id: check-eslint
+      run: |
+        if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f ".eslintrc.yml" ] || [ -f "eslint.config.js" ]; then
+          echo "config_found=true" >> $GITHUB_OUTPUT
+          echo "✅ ESLint config found"
+        elif [ -n "${{ inputs.config-file }}" ] && [ -f "${{ inputs.config-file }}" ]; then
+          echo "config_found=true" >> $GITHUB_OUTPUT
+          echo "✅ Using provided ESLint config: ${{ inputs.config-file }}"
+        else
+          echo "config_found=false" >> $GITHUB_OUTPUT
+          echo "⚠️ No ESLint config found - using defaults"
+        fi
+      shell: bash
+    
+    - name: Install ESLint (if needed)
+      run: |
+        if ! npm list eslint --depth=0 >/dev/null 2>&1; then
+          echo "Installing ESLint..."
+          npm install --no-save eslint
+        else
+          echo "✅ ESLint already installed"
+        fi
+      shell: bash
+    
+    - name: Run ESLint
+      id: lint
+      run: |
+        ESLINT_ARGS=""
+        
+        # Add max warnings
+        ESLINT_ARGS="$ESLINT_ARGS --max-warnings ${{ inputs.max-warnings }}"
+        
+        # Add fix flag
+        [ "${{ inputs.fix }}" == "true" ] && ESLINT_ARGS="$ESLINT_ARGS --fix"
+        
+        # Add config file
+        [ -n "${{ inputs.config-file }}" ] && ESLINT_ARGS="$ESLINT_ARGS --config ${{ inputs.config-file }}"
+        
+        # Add ignore patterns
+        for pattern in ${{ inputs.ignore-pattern }}; do
+          ESLINT_ARGS="$ESLINT_ARGS --ignore-pattern $pattern"
+        done
+        
+        echo "::group::ESLint Check"
+        echo "Linting files in ${{ inputs.extension-dir }}..."
+        
+        npx eslint "${{ inputs.extension-dir }}/**/*.js" \
+          --ext .js \
+          $ESLINT_ARGS \
+          --format stylish
+        
+        echo "::endgroup::"
+        echo "✅ ESLint passed with no errors"
+      shell: bash
+    
+    - name: Commit Auto-fixes
+      if: inputs.fix == 'true' && steps.lint.outcome == 'success'
+      run: |
+        if git diff --quiet; then
+          echo "ℹ️ No auto-fixes applied"
+        else
+          echo "::notice::ESLint auto-fixes were applied to the code"
+          echo "⚠️ Remember to commit these changes"
+        fi
+      shell: bash
+
+branding:
+  icon: 'code'
+  color: 'yellow'

@@ -1,0 +1,86 @@
+name: 'Publish to Chrome Web Store'
+description: 'Publishes Chrome extension to Chrome Web Store'
+author: 'Your Organization'
+
+inputs:
+  extension-id:
+    description: 'Chrome Web Store extension ID'
+    required: true
+  client-id:
+    description: 'Chrome Web Store API client ID'
+    required: true
+  client-secret:
+    description: 'Chrome Web Store API client secret'
+    required: true
+  refresh-token:
+    description: 'Chrome Web Store API refresh token'
+    required: true
+  zip-path:
+    description: 'Path to the extension ZIP file'
+    required: true
+  publish-target:
+    description: 'Publish target (default, trustedTesters)'
+    required: false
+    default: 'default'
+  auto-publish:
+    description: 'Auto-publish after upload'
+    required: false
+    default: 'true'
+
+outputs:
+  publish-status:
+    description: 'Publish status (success/failure)'
+    value: ${{ steps.publish.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Inputs
+      run: |
+        if [ ! -f "${{ inputs.zip-path }}" ]; then
+          echo "::error::ZIP file not found: ${{ inputs.zip-path }}"
+          exit 1
+        fi
+        
+        echo "✅ ZIP file validated: ${{ inputs.zip-path }}"
+      shell: bash
+    
+    - name: Publish to Chrome Web Store
+      id: publish
+      uses: mnao305/chrome-extension-upload@v5.0.0
+      with:
+        extension-id: ${{ inputs.extension-id }}
+        client-id: ${{ inputs.client-id }}
+        client-secret: ${{ inputs.client-secret }}
+        refresh-token: ${{ inputs.refresh-token }}
+        file-path: ${{ inputs.zip-path }}
+        publish: ${{ inputs.auto-publish }}
+        publish-target: ${{ inputs.publish-target }}
+    
+    - name: Publish Summary
+      if: always()
+      run: |
+        echo "## 🚀 Chrome Web Store Publish" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.publish.outcome }}" == "success" ]; then
+          echo "✅ Successfully published to Chrome Web Store" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Publish to Chrome Web Store failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "- **Extension ID**: \`${{ inputs.extension-id }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Publish Target**: ${{ inputs.publish-target }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Auto-Publish**: ${{ inputs.auto-publish }}" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ inputs.auto-publish }}" == "true" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 Extension will be available in the Chrome Web Store shortly" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📝 Extension uploaded as draft - manual publish required" >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
+
+branding:
+  icon: 'upload-cloud'
+  color: 'blue'

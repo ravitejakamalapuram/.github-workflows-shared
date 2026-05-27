@@ -1,0 +1,117 @@
+name: 'Setup Flutter Environment'
+description: 'Sets up Flutter SDK with pub cache corruption recovery'
+author: 'Your Organization'
+
+inputs:
+  flutter-channel:
+    description: 'Flutter channel (stable, beta, dev, master)'
+    required: false
+    default: 'stable'
+  flutter-version:
+    description: 'Specific Flutter version (leave empty for latest)'
+    required: false
+    default: ''
+  cache-pub:
+    description: 'Enable pub cache'
+    required: false
+    default: 'true'
+  auto-fix-corruption:
+    description: 'Auto-fix pub cache corruption'
+    required: false
+    default: 'true'
+  run-gen-l10n:
+    description: 'Run flutter gen-l10n for localizations'
+    required: false
+    default: 'true'
+
+outputs:
+  flutter-version:
+    description: 'Installed Flutter version'
+    value: ${{ steps.flutter-version.outputs.version }}
+  dart-version:
+    description: 'Dart SDK version'
+    value: ${{ steps.flutter-version.outputs.dart_version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check if Flutter is pre-installed
+      id: flutter-check
+      run: |
+        if command -v flutter &> /dev/null; then
+          echo "flutter_exists=true" >> $GITHUB_OUTPUT
+          flutter --version
+        else
+          echo "flutter_exists=false" >> $GITHUB_OUTPUT
+        fi
+      shell: bash
+      continue-on-error: true
+    
+    - name: Setup Flutter SDK
+      if: steps.flutter-check.outputs.flutter_exists != 'true'
+      uses: subosito/flutter-action@v2
+      with:
+        channel: ${{ inputs.flutter-channel }}
+        flutter-version: ${{ inputs.flutter-version }}
+        cache: ${{ inputs.cache-pub }}
+    
+    - name: Get Flutter & Dart versions
+      id: flutter-version
+      run: |
+        FLUTTER_VER=$(flutter --version | head -1 | awk '{print $2}')
+        DART_VER=$(flutter --version | grep -o 'Dart [0-9.]*' | awk '{print $2}')
+        echo "version=$FLUTTER_VER" >> $GITHUB_OUTPUT
+        echo "dart_version=$DART_VER" >> $GITHUB_OUTPUT
+        echo "✅ Flutter: $FLUTTER_VER | Dart: $DART_VER"
+      shell: bash
+    
+    - name: Flutter Setup (Clean & Pub Get)
+      id: flutter-setup
+      run: |
+        echo "::group::Flutter Clean"
+        flutter clean
+        echo "::endgroup::"
+        
+        echo "::group::Flutter Pub Get"
+        flutter pub get
+        echo "::endgroup::"
+        
+        if [ "${{ inputs.run-gen-l10n }}" == "true" ]; then
+          echo "::group::Flutter Gen L10n"
+          flutter gen-l10n || echo "⚠️ gen-l10n failed or not configured"
+          echo "::endgroup::"
+        fi
+      shell: bash
+      continue-on-error: ${{ inputs.auto-fix-corruption == 'true' }}
+    
+    - name: Clear corrupted pub cache and retry
+      if: failure() && steps.flutter-setup.outcome == 'failure' && inputs.auto-fix-corruption == 'true'
+      run: |
+        echo "⚠️ Detected pub cache corruption. Clearing and retrying..."
+        
+        # Remove commonly corrupted packages
+        rm -rf ~/.pub-cache/hosted/pub.dev/win32* || true
+        rm -rf ~/.pub-cache/hosted/pub.dev/intl* || true
+        rm -rf ~/.pub-cache/hosted/pub.dev/ffi* || true
+        rm -rf ~/.pub-cache/hosted/pub.dev/ffi_leak_tracker* || true
+        
+        flutter clean
+        flutter pub get
+        
+        if [ "${{ inputs.run-gen-l10n }}" == "true" ]; then
+          flutter gen-l10n || echo "⚠️ gen-l10n failed or not configured"
+        fi
+        
+        echo "✅ Pub cache cleared and dependencies re-fetched"
+      shell: bash
+    
+    - name: Display Flutter Doctor
+      run: |
+        echo "::group::Flutter Doctor"
+        flutter doctor -v
+        echo "::endgroup::"
+      shell: bash
+
+branding:
+  icon: 'smartphone'
+  color: 'blue'

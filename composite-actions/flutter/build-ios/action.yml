@@ -1,0 +1,93 @@
+name: 'Build Flutter iOS App'
+description: 'Builds Flutter iOS app'
+author: 'Your Organization'
+
+inputs:
+  flavor:
+    description: 'Build flavor (if using flavors)'
+    required: false
+    default: ''
+  build-mode:
+    description: 'Build mode: debug, profile, or release'
+    required: false
+    default: 'release'
+  codesign:
+    description: 'Enable code signing'
+    required: false
+    default: 'true'
+  obfuscate:
+    description: 'Enable code obfuscation'
+    required: false
+    default: 'true'
+  split-debug-info:
+    description: 'Directory for debug info (enables obfuscation)'
+    required: false
+    default: 'build/app/outputs/symbols'
+  extra-args:
+    description: 'Additional flutter build arguments'
+    required: false
+    default: ''
+
+outputs:
+  artifact-path:
+    description: 'Path to the generated IPA'
+    value: ${{ steps.build.outputs.artifact_path }}
+  build-status:
+    description: 'Build status (success/failure)'
+    value: ${{ steps.build.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build Flutter iOS
+      id: build
+      run: |
+        set -e
+        
+        BUILD_CMD="flutter build ios"
+        
+        # Add build mode
+        if [ "${{ inputs.build-mode }}" != "release" ]; then
+          BUILD_CMD="$BUILD_CMD --${{ inputs.build-mode }}"
+        fi
+        
+        # Add flavor if specified
+        [ -n "${{ inputs.flavor }}" ] && BUILD_CMD="$BUILD_CMD --flavor ${{ inputs.flavor }}"
+        
+        # Add code signing flag
+        [ "${{ inputs.codesign }}" == "false" ] && BUILD_CMD="$BUILD_CMD --no-codesign"
+        
+        # Add obfuscation settings
+        if [ "${{ inputs.obfuscate }}" == "true" ]; then
+          mkdir -p ${{ inputs.split-debug-info }}
+          BUILD_CMD="$BUILD_CMD --obfuscate --split-debug-info=${{ inputs.split-debug-info }}"
+        fi
+        
+        # Add extra args
+        [ -n "${{ inputs.extra-args }}" ] && BUILD_CMD="$BUILD_CMD ${{ inputs.extra-args }}"
+        
+        echo "::group::Building Flutter iOS"
+        echo "Command: $BUILD_CMD"
+        $BUILD_CMD
+        echo "::endgroup::"
+        
+        # Find the generated artifact
+        ARTIFACT=$(find build/ios -name "*.app" -o -name "*.ipa" | head -1)
+        
+        if [ -n "$ARTIFACT" ]; then
+          echo "artifact_path=$ARTIFACT" >> $GITHUB_OUTPUT
+          ARTIFACT_SIZE=$(du -sh "$ARTIFACT" | cut -f1)
+          echo "✅ Build successful: $ARTIFACT ($ARTIFACT_SIZE)"
+          
+          echo "## 📦 iOS Build" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mode**: ${{ inputs.build-mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Path**: \`$ARTIFACT\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size**: $ARTIFACT_SIZE" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ iOS artifact not found (this is normal for --no-codesign builds)"
+        fi
+      shell: bash
+
+branding:
+  icon: 'smartphone'
+  color: 'blue'

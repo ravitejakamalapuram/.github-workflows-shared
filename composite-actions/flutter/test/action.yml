@@ -1,0 +1,115 @@
+name: 'Flutter Test'
+description: 'Runs Flutter tests with coverage reporting'
+author: 'Your Organization'
+
+inputs:
+  coverage:
+    description: 'Enable code coverage'
+    required: false
+    default: 'true'
+  upload-coverage:
+    description: 'Upload coverage to Codecov'
+    required: false
+    default: 'false'
+  coverage-threshold:
+    description: 'Minimum coverage percentage required (0-100)'
+    required: false
+    default: '0'
+  test-path:
+    description: 'Specific test file or directory to run'
+    required: false
+    default: ''
+  extra-args:
+    description: 'Additional flutter test arguments'
+    required: false
+    default: ''
+
+outputs:
+  test-status:
+    description: 'Test execution status (success/failure)'
+    value: ${{ steps.test.outcome }}
+  coverage-percentage:
+    description: 'Code coverage percentage'
+    value: ${{ steps.coverage-report.outputs.coverage }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Flutter Tests
+      id: test
+      run: |
+        TEST_ARGS=""
+        [ "${{ inputs.coverage }}" == "true" ] && TEST_ARGS="$TEST_ARGS --coverage"
+        [ -n "${{ inputs.test-path }}" ] && TEST_ARGS="$TEST_ARGS ${{ inputs.test-path }}"
+        
+        echo "::group::Flutter Test"
+        flutter test $TEST_ARGS ${{ inputs.extra-args }}
+        echo "::endgroup::"
+        
+        echo "✅ All tests passed"
+      shell: bash
+    
+    - name: Generate Coverage Report
+      id: coverage-report
+      if: inputs.coverage == 'true'
+      run: |
+        if [ -f "coverage/lcov.info" ]; then
+          echo "::group::Coverage Summary"
+          
+          # Calculate coverage percentage (requires lcov tool)
+          if command -v lcov &> /dev/null; then
+            COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 | grep -oP 'lines......: \K[0-9.]+')
+            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "📊 Code Coverage: $COVERAGE%"
+          else
+            echo "⚠️ lcov not installed, skipping coverage percentage calculation"
+            echo "coverage=unknown" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "::endgroup::"
+          
+          # Check coverage threshold
+          if [ -n "$COVERAGE" ] && [ "${{ inputs.coverage-threshold }}" != "0" ]; then
+            if (( $(echo "$COVERAGE < ${{ inputs.coverage-threshold }}" | bc -l) )); then
+              echo "::error::❌ Coverage $COVERAGE% is below threshold ${{ inputs.coverage-threshold }}%"
+              exit 1
+            else
+              echo "✅ Coverage $COVERAGE% meets threshold ${{ inputs.coverage-threshold }}%"
+            fi
+          fi
+        else
+          echo "⚠️ No coverage file found"
+          echo "coverage=0" >> $GITHUB_OUTPUT
+        fi
+      shell: bash
+    
+    - name: Upload Coverage to Codecov
+      if: inputs.upload-coverage == 'true' && inputs.coverage == 'true'
+      uses: codecov/codecov-action@v4
+      with:
+        files: coverage/lcov.info
+        flags: flutter
+        fail_ci_if_error: false
+    
+    - name: Generate Test Summary
+      if: always()
+      run: |
+        echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.test.outcome }}" == "success" ]; then
+          echo "✅ All tests passed successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Some tests failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ inputs.coverage }}" == "true" ] && [ -f "coverage/lcov.info" ]; then
+          COVERAGE="${{ steps.coverage-report.outputs.coverage }}"
+          if [ "$COVERAGE" != "unknown" ] && [ "$COVERAGE" != "0" ]; then
+            echo "📊 **Code Coverage**: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+      shell: bash
+
+branding:
+  icon: 'check-square'
+  color: 'green'

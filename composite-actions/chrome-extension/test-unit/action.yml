@@ -1,0 +1,87 @@
+name: 'Run Chrome Extension Unit Tests'
+description: 'Runs unit tests for Chrome extension'
+author: 'Your Organization'
+
+inputs:
+  test-script:
+    description: 'npm script name to run tests'
+    required: false
+    default: 'test'
+  test-framework:
+    description: 'Test framework (jest, mocha, node)'
+    required: false
+    default: 'node'
+  coverage:
+    description: 'Enable code coverage'
+    required: false
+    default: 'false'
+  upload-coverage:
+    description: 'Upload coverage to Codecov'
+    required: false
+    default: 'false'
+
+outputs:
+  test-status:
+    description: 'Test status (success/failure)'
+    value: ${{ steps.test.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check for test script
+      id: check-tests
+      run: |
+        if [ -f "package.json" ]; then
+          if grep -q "\"${{ inputs.test-script }}\"" package.json; then
+            echo "test_script_found=true" >> $GITHUB_OUTPUT
+            echo "✅ Test script '${{ inputs.test-script }}' found in package.json"
+          else
+            echo "test_script_found=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No '${{ inputs.test-script }}' script found in package.json"
+          fi
+        else
+          echo "test_script_found=false" >> $GITHUB_OUTPUT
+          echo "⚠️ No package.json found"
+        fi
+      shell: bash
+    
+    - name: Run Unit Tests
+      id: test
+      if: steps.check-tests.outputs.test_script_found == 'true'
+      run: |
+        echo "::group::Running Unit Tests"
+        
+        if [ "${{ inputs.coverage }}" == "true" ]; then
+          npm run ${{ inputs.test-script }} -- --coverage
+        else
+          npm run ${{ inputs.test-script }}
+        fi
+        
+        echo "::endgroup::"
+        echo "✅ All unit tests passed"
+      shell: bash
+    
+    - name: Upload Coverage
+      if: inputs.coverage == 'true' && inputs.upload-coverage == 'true'
+      uses: codecov/codecov-action@v4
+      with:
+        flags: extension-unit
+        fail_ci_if_error: false
+    
+    - name: Generate Test Summary
+      if: always()
+      run: |
+        echo "## 🧪 Unit Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.test.outcome }}" == "success" ]; then
+          echo "✅ All unit tests passed" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ steps.test.outcome }}" == "skipped" ]; then
+          echo "⏭️ Tests skipped - no test script found" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Some tests failed" >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
+
+branding:
+  icon: 'check-circle'
+  color: 'blue'

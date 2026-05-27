@@ -1,0 +1,95 @@
+name: 'Create GitHub Release'
+description: 'Creates a GitHub release with artifacts'
+author: 'Your Organization'
+
+inputs:
+  tag-name:
+    description: 'Tag name for the release'
+    required: true
+  release-name:
+    description: 'Name of the release (defaults to tag name)'
+    required: false
+    default: ''
+  body:
+    description: 'Release body/notes (markdown supported)'
+    required: false
+    default: ''
+  body-file:
+    description: 'Path to file containing release notes'
+    required: false
+    default: ''
+  draft:
+    description: 'Create as draft release'
+    required: false
+    default: 'false'
+  prerelease:
+    description: 'Mark as pre-release'
+    required: false
+    default: 'false'
+  files:
+    description: 'Files to upload (newline or comma-separated)'
+    required: false
+    default: ''
+  generate-release-notes:
+    description: 'Auto-generate release notes from commits'
+    required: false
+    default: 'true'
+
+outputs:
+  release-id:
+    description: 'ID of the created release'
+    value: ${{ steps.create.outputs.id }}
+  release-url:
+    description: 'URL of the created release'
+    value: ${{ steps.create.outputs.url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Prepare Release Name
+      id: prepare
+      run: |
+        if [ -z "${{ inputs.release-name }}" ]; then
+          RELEASE_NAME="Release ${{ inputs.tag-name }}"
+        else
+          RELEASE_NAME="${{ inputs.release-name }}"
+        fi
+        
+        echo "name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+        echo "📝 Release name: $RELEASE_NAME"
+      shell: bash
+    
+    - name: Create GitHub Release
+      id: create
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ inputs.tag-name }}
+        name: ${{ steps.prepare.outputs.name }}
+        body: ${{ inputs.body }}
+        body_path: ${{ inputs.body-file }}
+        draft: ${{ inputs.draft }}
+        prerelease: ${{ inputs.prerelease }}
+        files: ${{ inputs.files }}
+        generate_release_notes: ${{ inputs.generate-release-notes }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+    
+    - name: Release Summary
+      run: |
+        echo "## 🎉 GitHub Release Created" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tag**: ${{ inputs.tag-name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Name**: ${{ steps.prepare.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Draft**: ${{ inputs.draft }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Pre-release**: ${{ inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -n "${{ inputs.files }}" ]; then
+          echo "- **Artifacts**: Uploaded" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 [View Release](${{ steps.create.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+      shell: bash
+
+branding:
+  icon: 'gift'
+  color: 'purple'

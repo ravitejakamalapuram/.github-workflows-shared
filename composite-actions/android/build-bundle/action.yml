@@ -1,0 +1,105 @@
+name: 'Build Android App Bundle (AAB)'
+description: 'Builds Android App Bundle for Google Play Store distribution'
+author: 'Your Organization'
+
+inputs:
+  version-code:
+    description: 'Version code for the build'
+    required: false
+    default: ''
+  version-name:
+    description: 'Version name for the build'
+    required: false
+    default: ''
+  keystore-base64:
+    description: 'Base64-encoded keystore file'
+    required: false
+    default: ''
+  keystore-password:
+    description: 'Keystore password'
+    required: false
+    default: ''
+  key-alias:
+    description: 'Key alias'
+    required: false
+    default: ''
+  key-password:
+    description: 'Key password'
+    required: false
+    default: ''
+  extra-args:
+    description: 'Additional Gradle arguments'
+    required: false
+    default: ''
+
+outputs:
+  aab-path:
+    description: 'Path to the generated AAB'
+    value: ${{ steps.build.outputs.aab_path }}
+  build-status:
+    description: 'Build status (success/failure)'
+    value: ${{ steps.build.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Decode Release Keystore
+      if: inputs.keystore-base64 != ''
+      run: |
+        echo "${{ inputs.keystore-base64 }}" | base64 --decode > app/release.keystore
+        echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
+        echo "KEYSTORE_PASSWORD=${{ inputs.keystore-password }}" >> $GITHUB_ENV
+        echo "KEY_ALIAS=${{ inputs.key-alias }}" >> $GITHUB_ENV
+        echo "KEY_PASSWORD=${{ inputs.key-password }}" >> $GITHUB_ENV
+        echo "✅ Keystore decoded successfully"
+      shell: bash
+    
+    - name: Build App Bundle (AAB)
+      id: build
+      run: |
+        set -e
+        
+        VERSION_ARGS=""
+        [ -n "${{ inputs.version-code }}" ] && VERSION_ARGS="$VERSION_ARGS -PversionCode=${{ inputs.version-code }}"
+        [ -n "${{ inputs.version-name }}" ] && VERSION_ARGS="$VERSION_ARGS -PversionName=${{ inputs.version-name }}"
+        
+        echo "::group::Building App Bundle (AAB)"
+        ./gradlew bundleRelease $VERSION_ARGS ${{ inputs.extra-args }}
+        echo "::endgroup::"
+        
+        # Find the generated AAB
+        AAB_PATH=$(find . -name "*-release.aab" | head -1)
+        if [ -z "$AAB_PATH" ]; then
+          AAB_PATH=$(find . -path "*/build/outputs/bundle/release/*.aab" | head -1)
+        fi
+        
+        if [ -n "$AAB_PATH" ]; then
+          echo "aab_path=$AAB_PATH" >> $GITHUB_OUTPUT
+          AAB_SIZE=$(du -h "$AAB_PATH" | cut -f1)
+          echo "✅ AAB built successfully: $AAB_PATH ($AAB_SIZE)"
+          
+          echo "## 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- **AAB Path**: \`$AAB_PATH\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size**: $AAB_SIZE" >> $GITHUB_STEP_SUMMARY
+          [ -n "${{ inputs.version-name }}" ] && echo "- **Version**: ${{ inputs.version-name }} (${{ inputs.version-code }})" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ AAB not found after build"
+          exit 1
+        fi
+      shell: bash
+      env:
+        KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+        KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ env.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+    
+    - name: Cleanup Keystore
+      if: always() && inputs.keystore-base64 != ''
+      run: |
+        [ -f app/release.keystore ] && rm -f app/release.keystore
+        echo "🧹 Cleaned up keystore file"
+      shell: bash
+
+branding:
+  icon: 'package'
+  color: 'purple'

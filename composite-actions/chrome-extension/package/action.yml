@@ -1,0 +1,111 @@
+name: 'Package Chrome Extension'
+description: 'Creates a distributable ZIP file for Chrome extension'
+author: 'Your Organization'
+
+inputs:
+  extension-dir:
+    description: 'Directory containing extension files'
+    required: false
+    default: 'extension'
+  output-name:
+    description: 'Output ZIP file name (without .zip extension)'
+    required: false
+    default: 'extension'
+  exclude-patterns:
+    description: 'Patterns to exclude from ZIP (space-separated)'
+    required: false
+    default: '*.DS_Store *__pycache__* *.git* node_modules'
+  include-source-maps:
+    description: 'Include source maps in the package'
+    required: false
+    default: 'false'
+
+outputs:
+  package-path:
+    description: 'Path to the generated ZIP file'
+    value: ${{ steps.package.outputs.zip_path }}
+  package-status:
+    description: 'Packaging status (success/failure)'
+    value: ${{ steps.package.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Extension Directory
+      run: |
+        if [ ! -d "${{ inputs.extension-dir }}" ]; then
+          echo "::error::Extension directory not found: ${{ inputs.extension-dir }}"
+          exit 1
+        fi
+        
+        if [ ! -f "${{ inputs.extension-dir }}/manifest.json" ]; then
+          echo "::error::manifest.json not found in ${{ inputs.extension-dir }}"
+          exit 1
+        fi
+        
+        echo "✅ Extension directory validated"
+      shell: bash
+    
+    - name: Package Extension
+      id: package
+      run: |
+        set -e
+        
+        # Build exclude arguments for zip
+        EXCLUDE_ARGS=""
+        for pattern in ${{ inputs.exclude-patterns }}; do
+          EXCLUDE_ARGS="$EXCLUDE_ARGS -x \"$pattern\""
+        done
+        
+        # Exclude source maps if not included
+        if [ "${{ inputs.include-source-maps }}" != "true" ]; then
+          EXCLUDE_ARGS="$EXCLUDE_ARGS -x \"*.map\""
+        fi
+        
+        OUTPUT_FILE="${{ inputs.output-name }}.zip"
+        
+        echo "::group::Packaging Extension"
+        echo "Creating ZIP: $OUTPUT_FILE"
+        
+        cd "${{ inputs.extension-dir }}"
+        eval "zip -r ../$OUTPUT_FILE . $EXCLUDE_ARGS" > /dev/null
+        cd ..
+        
+        echo "::endgroup::"
+        
+        if [ -f "$OUTPUT_FILE" ]; then
+          ZIP_SIZE=$(du -h "$OUTPUT_FILE" | cut -f1)
+          echo "zip_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          echo "✅ Extension packaged successfully: $OUTPUT_FILE ($ZIP_SIZE)"
+          
+          echo "## 📦 Extension Package" >> $GITHUB_STEP_SUMMARY
+          echo "- **File**: \`$OUTPUT_FILE\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size**: $ZIP_SIZE" >> $GITHUB_STEP_SUMMARY
+          
+          # Get extension info from manifest
+          EXT_NAME=$(python3 -c "import json; print(json.load(open('${{ inputs.extension-dir }}/manifest.json')).get('name', 'Unknown'))")
+          EXT_VERSION=$(python3 -c "import json; print(json.load(open('${{ inputs.extension-dir }}/manifest.json')).get('version', 'Unknown'))")
+          
+          echo "- **Name**: $EXT_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: $EXT_VERSION" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "::error::Failed to create ZIP file"
+          exit 1
+        fi
+      shell: bash
+    
+    - name: Verify Package Contents
+      run: |
+        OUTPUT_FILE="${{ inputs.output-name }}.zip"
+        
+        echo "::group::Package Contents"
+        unzip -l "$OUTPUT_FILE" | head -20
+        
+        FILE_COUNT=$(unzip -l "$OUTPUT_FILE" | tail -1 | awk '{print $2}')
+        echo "📊 Total files in package: $FILE_COUNT"
+        echo "::endgroup::"
+      shell: bash
+
+branding:
+  icon: 'package'
+  color: 'orange'

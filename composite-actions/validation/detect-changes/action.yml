@@ -1,0 +1,97 @@
+name: 'Detect Changed Paths'
+description: 'Detects which project paths have changed for selective CI execution'
+author: 'Your Organization'
+
+inputs:
+  android-paths:
+    description: 'Paths to watch for Android changes (newline-separated)'
+    required: false
+    default: |
+      app/**
+      android/**
+      *.gradle*
+      gradle/**
+  flutter-paths:
+    description: 'Paths to watch for Flutter changes (newline-separated)'
+    required: false
+    default: |
+      lib/**
+      pubspec.yaml
+      analysis_options.yaml
+      android/**
+      ios/**
+  extension-paths:
+    description: 'Paths to watch for Chrome Extension changes (newline-separated)'
+    required: false
+    default: |
+      extension/**
+      chrome-extension/**
+      manifest.json
+  workflow-paths:
+    description: 'Paths to watch for workflow changes (newline-separated)'
+    required: false
+    default: |
+      .github/workflows/**
+      .github/actions/**
+
+outputs:
+  android-changed:
+    description: 'Android code changed'
+    value: ${{ steps.changes.outputs.android }}
+  flutter-changed:
+    description: 'Flutter code changed'
+    value: ${{ steps.changes.outputs.flutter }}
+  extension-changed:
+    description: 'Extension code changed'
+    value: ${{ steps.changes.outputs.extension }}
+  workflow-changed:
+    description: 'Workflow files changed'
+    value: ${{ steps.changes.outputs.workflow }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect Changed Paths
+      id: changes
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          android:
+            ${{ inputs.android-paths }}
+          flutter:
+            ${{ inputs.flutter-paths }}
+          extension:
+            ${{ inputs.extension-paths }}
+          workflow:
+            ${{ inputs.workflow-paths }}
+    
+    - name: Report Changes
+      run: |
+        echo "## 📊 Change Detection Results" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.changes.outputs.android }}" == "true" ]; then
+          echo "✅ **Android**: Changed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚪ **Android**: No changes" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ steps.changes.outputs.flutter }}" == "true" ]; then
+          echo "✅ **Flutter**: Changed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚪ **Flutter**: No changes" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ steps.changes.outputs.extension }}" == "true" ]; then
+          echo "✅ **Extension**: Changed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚪ **Extension**: No changes" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ steps.changes.outputs.workflow }}" == "true" ]; then
+          echo "⚠️ **Workflows**: Changed (all jobs will run)" >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
+
+branding:
+  icon: 'filter'
+  color: 'yellow'

@@ -1,0 +1,59 @@
+{
+  "description": "Flutter project configuration defaults",
+  "flutter": {
+    "channel": "stable",
+    "version": "latest",
+    "alternateChannels": ["beta", "dev", "master"]
+  },
+  "dart": {
+    "minVersion": "3.0.0"
+  },
+  "analysis": {
+    "fatalWarnings": true,
+    "fatalInfos": false,
+    "architectureChecks": {
+      "enabled": true,
+      "checkApiInWidgets": true,
+      "checkNavigationInDomain": true,
+      "checkUIInDomain": true
+    }
+  },
+  "testing": {
+    "coverage": true,
+    "coverageThreshold": 0,
+    "uploadCoverage": false,
+    "platforms": ["vm", "chrome"]
+  },
+  "build": {
+    "android": {
+      "buildType": "appbundle",
+      "flavor": "",
+      "splitPerAbi": false,
+      "obfuscate": true,
+      "debugInfoPath": "build/app/outputs/symbols"
+    },
+    "ios": {
+      "codesign": true,
+      "obfuscate": true,
+      "debugInfoPath": "build/app/outputs/symbols"
+    },
+    "web": {
+      "renderer": "canvaskit",
+      "baseHref": "/"
+    }
+  },
+  "pubCache": {
+    "autoFixCorruption": true,
+    "commonCorruptedPackages": [
+      "win32",
+      "intl",
+      "ffi",
+      "ffi_leak_tracker"
+    ]
+  },
+  "l10n": {
+    "enabled": true,
+    "arbDir": "lib/l10n",
+    "templateArbFile": "app_en.arb"
+  }
+}

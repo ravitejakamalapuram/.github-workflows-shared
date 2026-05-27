@@ -1,0 +1,106 @@
+name: 'Build Flutter Android App'
+description: 'Builds Flutter Android app (APK or AAB)'
+author: 'Your Organization'
+
+inputs:
+  build-type:
+    description: 'Build type: apk or appbundle'
+    required: false
+    default: 'appbundle'
+  flavor:
+    description: 'Build flavor (if using flavors)'
+    required: false
+    default: ''
+  build-mode:
+    description: 'Build mode: debug, profile, or release'
+    required: false
+    default: 'release'
+  split-per-abi:
+    description: 'Build separate APKs per ABI (only for APK builds)'
+    required: false
+    default: 'false'
+  obfuscate:
+    description: 'Enable code obfuscation'
+    required: false
+    default: 'true'
+  split-debug-info:
+    description: 'Directory for debug info (enables obfuscation)'
+    required: false
+    default: 'build/app/outputs/symbols'
+  extra-args:
+    description: 'Additional flutter build arguments'
+    required: false
+    default: ''
+
+outputs:
+  artifact-path:
+    description: 'Path to the generated artifact'
+    value: ${{ steps.build.outputs.artifact_path }}
+  build-status:
+    description: 'Build status (success/failure)'
+    value: ${{ steps.build.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build Flutter Android
+      id: build
+      run: |
+        set -e
+        
+        BUILD_CMD="flutter build ${{ inputs.build-type }}"
+        
+        # Add build mode
+        if [ "${{ inputs.build-mode }}" != "release" ]; then
+          BUILD_CMD="$BUILD_CMD --${{ inputs.build-mode }}"
+        fi
+        
+        # Add flavor if specified
+        [ -n "${{ inputs.flavor }}" ] && BUILD_CMD="$BUILD_CMD --flavor ${{ inputs.flavor }}"
+        
+        # Add split-per-abi for APK builds
+        if [ "${{ inputs.build-type }}" == "apk" ] && [ "${{ inputs.split-per-abi }}" == "true" ]; then
+          BUILD_CMD="$BUILD_CMD --split-per-abi"
+        fi
+        
+        # Add obfuscation settings
+        if [ "${{ inputs.obfuscate }}" == "true" ]; then
+          mkdir -p ${{ inputs.split-debug-info }}
+          BUILD_CMD="$BUILD_CMD --obfuscate --split-debug-info=${{ inputs.split-debug-info }}"
+        fi
+        
+        # Add extra args
+        [ -n "${{ inputs.extra-args }}" ] && BUILD_CMD="$BUILD_CMD ${{ inputs.extra-args }}"
+        
+        echo "::group::Building Flutter Android (${{ inputs.build-type }})"
+        echo "Command: $BUILD_CMD"
+        $BUILD_CMD
+        echo "::endgroup::"
+        
+        # Find the generated artifact
+        if [ "${{ inputs.build-type }}" == "appbundle" ]; then
+          ARTIFACT=$(find build/app/outputs/bundle -name "*.aab" | head -1)
+        else
+          ARTIFACT=$(find build/app/outputs/apk -name "*.apk" | head -1)
+        fi
+        
+        if [ -n "$ARTIFACT" ]; then
+          echo "artifact_path=$ARTIFACT" >> $GITHUB_OUTPUT
+          ARTIFACT_SIZE=$(du -h "$ARTIFACT" | cut -f1)
+          echo "✅ Build successful: $ARTIFACT ($ARTIFACT_SIZE)"
+          
+          echo "## 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: ${{ inputs.build-type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mode**: ${{ inputs.build-mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Path**: \`$ARTIFACT\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size**: $ARTIFACT_SIZE" >> $GITHUB_STEP_SUMMARY
+          [ "${{ inputs.obfuscate }}" == "true" ] && echo "- **Obfuscated**: Yes" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Artifact not found after build"
+          exit 1
+        fi
+      shell: bash
+
+branding:
+  icon: 'smartphone'
+  color: 'orange'

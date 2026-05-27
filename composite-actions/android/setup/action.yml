@@ -1,0 +1,83 @@
+name: 'Setup Android Build Environment'
+description: 'Sets up JDK, Android SDK, and Gradle caching for Android projects'
+author: 'Your Organization'
+
+inputs:
+  java-version:
+    description: 'JDK version to use'
+    required: false
+    default: '17'
+  java-distribution:
+    description: 'JDK distribution (zulu, temurin, adopt, etc.)'
+    required: false
+    default: 'zulu'
+  gradle-cache:
+    description: 'Enable Gradle caching'
+    required: false
+    default: 'true'
+  android-sdk-version:
+    description: 'Android SDK compile version'
+    required: false
+    default: '35'
+  make-gradlew-executable:
+    description: 'Automatically chmod +x gradlew'
+    required: false
+    default: 'true'
+
+outputs:
+  java-home:
+    description: 'Path to Java installation'
+    value: ${{ steps.setup-java.outputs.path }}
+  java-version:
+    description: 'Installed Java version'
+    value: ${{ steps.setup-java.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up JDK ${{ inputs.java-version }}
+      id: setup-java
+      uses: actions/setup-java@v4
+      with:
+        distribution: ${{ inputs.java-distribution }}
+        java-version: ${{ inputs.java-version }}
+        cache: ${{ inputs.gradle-cache == 'true' && 'gradle' || '' }}
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      shell: bash
+      
+    - name: Grant execute permission for gradlew
+      if: inputs.make-gradlew-executable == 'true'
+      run: |
+        if [ -f "./gradlew" ]; then
+          chmod +x gradlew
+          echo "✅ Made gradlew executable"
+        else
+          echo "⚠️ gradlew not found in current directory"
+        fi
+      shell: bash
+      
+    - name: Display environment info
+      run: |
+        echo "::group::Java Environment"
+        java -version
+        echo "JAVA_HOME: $JAVA_HOME"
+        echo "::endgroup::"
+        
+        echo "::group::Gradle Environment"
+        if [ -f "./gradlew" ]; then
+          ./gradlew --version
+        else
+          echo "gradlew not found - skipping version check"
+        fi
+        echo "::endgroup::"
+        
+        echo "::group::Android SDK"
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        echo "::endgroup::"
+      shell: bash
+
+branding:
+  icon: 'package'
+  color: 'green'

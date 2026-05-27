@@ -1,0 +1,111 @@
+name: 'Build Android APK'
+description: 'Builds Android APK (debug or release) with optional signing'
+author: 'Your Organization'
+
+inputs:
+  build-type:
+    description: 'Build type: debug or release'
+    required: false
+    default: 'release'
+  modules:
+    description: 'Specific modules to build (space-separated)'
+    required: false
+    default: 'app'
+  version-code:
+    description: 'Version code for the build'
+    required: false
+    default: ''
+  version-name:
+    description: 'Version name for the build'
+    required: false
+    default: ''
+  keystore-base64:
+    description: 'Base64-encoded keystore file (for release builds)'
+    required: false
+    default: ''
+  keystore-password:
+    description: 'Keystore password (for release builds)'
+    required: false
+    default: ''
+  key-alias:
+    description: 'Key alias (for release builds)'
+    required: false
+    default: ''
+  key-password:
+    description: 'Key password (for release builds)'
+    required: false
+    default: ''
+  extra-args:
+    description: 'Additional Gradle arguments'
+    required: false
+    default: ''
+
+outputs:
+  apk-path:
+    description: 'Path to the generated APK'
+    value: ${{ steps.build.outputs.apk_path }}
+  build-status:
+    description: 'Build status (success/failure)'
+    value: ${{ steps.build.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Decode Release Keystore
+      if: inputs.build-type == 'release' && inputs.keystore-base64 != ''
+      run: |
+        echo "${{ inputs.keystore-base64 }}" | base64 --decode > app/release.keystore
+        echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
+        echo "KEYSTORE_PASSWORD=${{ inputs.keystore-password }}" >> $GITHUB_ENV
+        echo "KEY_ALIAS=${{ inputs.key-alias }}" >> $GITHUB_ENV
+        echo "KEY_PASSWORD=${{ inputs.key-password }}" >> $GITHUB_ENV
+        echo "✅ Keystore decoded successfully"
+      shell: bash
+    
+    - name: Build APK
+      id: build
+      run: |
+        set -e
+        
+        BUILD_TASK="assemble$(echo ${{ inputs.build-type }} | sed 's/^./\U&/')"
+        
+        VERSION_ARGS=""
+        [ -n "${{ inputs.version-code }}" ] && VERSION_ARGS="$VERSION_ARGS -PversionCode=${{ inputs.version-code }}"
+        [ -n "${{ inputs.version-name }}" ] && VERSION_ARGS="$VERSION_ARGS -PversionName=${{ inputs.version-name }}"
+        
+        echo "::group::Building APK (${{ inputs.build-type }})"
+        ./gradlew $BUILD_TASK $VERSION_ARGS ${{ inputs.extra-args }}
+        echo "::endgroup::"
+        
+        # Find the generated APK
+        APK_PATH=$(find . -name "*-${{ inputs.build-type }}.apk" | head -1)
+        if [ -z "$APK_PATH" ]; then
+          APK_PATH=$(find . -path "*/build/outputs/apk/${{ inputs.build-type }}/*.apk" | head -1)
+        fi
+        
+        if [ -n "$APK_PATH" ]; then
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+          echo "✅ APK built successfully: $APK_PATH ($APK_SIZE)"
+          echo "📦 APK Size: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ APK not found after build"
+          exit 1
+        fi
+      shell: bash
+      env:
+        KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+        KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ env.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+    
+    - name: Cleanup Keystore
+      if: always() && inputs.build-type == 'release' && inputs.keystore-base64 != ''
+      run: |
+        [ -f app/release.keystore ] && rm -f app/release.keystore
+        echo "🧹 Cleaned up keystore file"
+      shell: bash
+
+branding:
+  icon: 'box'
+  color: 'orange'

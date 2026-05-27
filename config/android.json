@@ -1,0 +1,47 @@
+{
+  "description": "Android project configuration defaults",
+  "java": {
+    "version": "17",
+    "distribution": "zulu",
+    "alternates": ["temurin", "adopt", "corretto"]
+  },
+  "android": {
+    "compileSdk": 35,
+    "minSdk": 26,
+    "targetSdk": 35,
+    "buildTools": "35.0.0"
+  },
+  "gradle": {
+    "version": "8.5",
+    "caching": true,
+    "daemon": true,
+    "parallel": true,
+    "maxWorkers": 4
+  },
+  "testing": {
+    "unitTests": {
+      "task": "test",
+      "uploadReports": true,
+      "retentionDays": 7
+    },
+    "instrumentedTests": {
+      "task": "connectedAndroidTest",
+      "emulator": {
+        "api": 30,
+        "abi": "x86_64",
+        "profile": "pixel_5"
+      }
+    }
+  },
+  "signing": {
+    "keystoreFile": "release.keystore",
+    "keyAlias": "release-key"
+  },
+  "publishing": {
+    "playStore": {
+      "defaultTrack": "alpha",
+      "tracks": ["internal", "alpha", "beta", "production"],
+      "rolloutPercentages": [10, 20, 50, 100]
+    }
+  }
+}

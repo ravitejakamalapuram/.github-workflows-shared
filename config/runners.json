@@ -1,0 +1,98 @@
+{
+  "description": "GitHub Actions runner configuration for different project types",
+  "runners": {
+    "android": {
+      "default": "ubuntu-latest",
+      "alternatives": {
+        "heavy": "ubuntu-latest-8-cores",
+        "windows": "windows-latest",
+        "macos": "macos-latest"
+      },
+      "recommended": {
+        "ci": "ubuntu-latest",
+        "cd": "ubuntu-latest",
+        "tests": "ubuntu-latest"
+      }
+    },
+    "flutter": {
+      "default": "self-hosted",
+      "alternatives": {
+        "ubuntu": "ubuntu-latest",
+        "macos": "macos-latest",
+        "windows": "windows-latest"
+      },
+      "recommended": {
+        "ci": "self-hosted",
+        "cd": "self-hosted",
+        "android-build": "self-hosted",
+        "ios-build": "macos-latest",
+        "web-build": "ubuntu-latest"
+      },
+      "platformRequired": {
+        "ios": ["macos-13", "macos-14", "macos-latest"],
+        "macos": ["macos-13", "macos-14", "macos-latest"],
+        "windows": ["windows-latest"]
+      }
+    },
+    "chrome-extension": {
+      "default": "ubuntu-latest",
+      "alternatives": {
+        "windows": "windows-latest",
+        "macos": "macos-latest"
+      },
+      "recommended": {
+        "ci": "ubuntu-latest",
+        "cd": "ubuntu-latest",
+        "e2e-tests": "ubuntu-latest"
+      }
+    }
+  },
+  "concurrency": {
+    "cancelInProgress": {
+      "ci": true,
+      "cd": false,
+      "tests": true
+    },
+    "grouping": {
+      "ci": "ci-${{ github.ref }}",
+      "cd": "cd-${{ github.ref }}",
+      "tests": "tests-${{ github.ref }}"
+    }
+  },
+  "timeouts": {
+    "ci": {
+      "default": 30,
+      "flutter": 45,
+      "android": 30,
+      "extension": 20
+    },
+    "cd": {
+      "default": 60,
+      "flutter": 90,
+      "android": 60,
+      "extension": 30
+    }
+  },
+  "caching": {
+    "gradle": {
+      "enabled": true,
+      "paths": [
+        "~/.gradle/caches",
+        "~/.gradle/wrapper"
+      ]
+    },
+    "flutter": {
+      "enabled": true,
+      "paths": [
+        "~/.pub-cache"
+      ]
+    },
+    "npm": {
+      "enabled": true,
+      "paths": [
+        "~/.npm",
+        "node_modules"
+      ]
+    }
+  }
+}

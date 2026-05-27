@@ -1,0 +1,90 @@
+name: 'Run Android Tests'
+description: 'Runs Android unit tests with configurable options'
+author: 'Your Organization'
+
+inputs:
+  test-task:
+    description: 'Gradle test task to run'
+    required: false
+    default: 'test'
+  modules:
+    description: 'Specific modules to test (space-separated, e.g., "app core")'
+    required: false
+    default: ''
+  report-retention-days:
+    description: 'Days to retain test reports as artifacts'
+    required: false
+    default: '7'
+  upload-reports:
+    description: 'Upload test reports as artifacts'
+    required: false
+    default: 'true'
+  fail-fast:
+    description: 'Fail immediately on first test failure'
+    required: false
+    default: 'false'
+
+outputs:
+  test-result:
+    description: 'Test execution result (success/failure)'
+    value: ${{ steps.test.outcome }}
+  reports-path:
+    description: 'Path to generated test reports'
+    value: '**/build/reports/tests/'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Android Unit Tests
+      id: test
+      run: |
+        set -e
+        
+        if [ -n "${{ inputs.modules }}" ]; then
+          echo "Running tests for modules: ${{ inputs.modules }}"
+          for module in ${{ inputs.modules }}; do
+            echo "::group::Testing module: $module"
+            ./gradlew :${module}:${{ inputs.test-task }} ${{ inputs.fail-fast == 'true' && '--fail-fast' || '' }}
+            echo "::endgroup::"
+          done
+        else
+          echo "Running all tests"
+          ./gradlew ${{ inputs.test-task }} ${{ inputs.fail-fast == 'true' && '--fail-fast' || '' }}
+        fi
+        
+        echo "✅ All tests passed"
+      shell: bash
+      continue-on-error: false
+    
+    - name: Generate Test Summary
+      if: always()
+      run: |
+        echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.test.outcome }}" == "success" ]; then
+          echo "✅ All tests passed successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Some tests failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Count test results if available
+        if command -v find >/dev/null 2>&1; then
+          TEST_REPORTS=$(find . -path "*/build/test-results/*/TEST-*.xml" 2>/dev/null | wc -l)
+          echo "📊 Found $TEST_REPORTS test result files" >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
+    
+    - name: Upload Test Reports
+      if: always() && inputs.upload-reports == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-test-reports-${{ github.run_number }}
+        path: |
+          **/build/reports/tests/
+          **/build/test-results/
+        retention-days: ${{ inputs.report-retention-days }}
+        if-no-files-found: warn
+
+branding:
+  icon: 'check-circle'
+  color: 'blue'

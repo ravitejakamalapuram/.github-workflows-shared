@@ -1,0 +1,127 @@
+name: 'Flutter Analyze'
+description: 'Runs Flutter analyzer with architecture checks'
+author: 'Your Organization'
+
+inputs:
+  fatal-warnings:
+    description: 'Treat warnings as errors'
+    required: false
+    default: 'true'
+  fatal-infos:
+    description: 'Treat infos as errors'
+    required: false
+    default: 'false'
+  architecture-checks:
+    description: 'Run architecture violation checks'
+    required: false
+    default: 'true'
+  check-api-in-widgets:
+    description: 'Check for direct API calls in presentation/widgets'
+    required: false
+    default: 'true'
+  check-navigation-in-domain:
+    description: 'Check for navigation logic in domain layer'
+    required: false
+    default: 'true'
+
+outputs:
+  analyze-status:
+    description: 'Analysis status (success/failure)'
+    value: ${{ steps.analyze.outcome }}
+  architecture-status:
+    description: 'Architecture check status (success/failure/skipped)'
+    value: ${{ steps.architecture.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Flutter Analyzer
+      id: analyze
+      run: |
+        ARGS=""
+        [ "${{ inputs.fatal-warnings }}" == "true" ] && ARGS="$ARGS --fatal-warnings"
+        [ "${{ inputs.fatal-infos }}" == "true" ] && ARGS="$ARGS --fatal-infos" || ARGS="$ARGS --no-fatal-infos"
+        
+        echo "::group::Flutter Analyze"
+        flutter analyze $ARGS
+        echo "::endgroup::"
+        
+        echo "✅ Flutter analyze passed"
+      shell: bash
+    
+    - name: Architecture Validation
+      id: architecture
+      if: inputs.architecture-checks == 'true'
+      run: |
+        echo "::group::Architecture Checks"
+        
+        VIOLATIONS=0
+        
+        # Check for API calls in presentation layer widgets
+        if [ "${{ inputs.check-api-in-widgets }}" == "true" ]; then
+          echo "Checking for API calls in presentation/widgets..."
+          if grep -rn "FirebaseFirestore\|http\.\|dio\.\|Dio(" lib/features/*/presentation/widgets/ 2>/dev/null; then
+            echo "::error::❌ Found direct API calls in presentation/widgets layer"
+            echo "::error::Widgets should not make direct API calls. Use repositories/services instead."
+            VIOLATIONS=$((VIOLATIONS + 1))
+          else
+            echo "✅ No API calls in presentation/widgets"
+          fi
+        fi
+        
+        # Check for navigation in domain layer
+        if [ "${{ inputs.check-navigation-in-domain }}" == "true" ]; then
+          echo "Checking for navigation logic in domain layer..."
+          if grep -rn "Navigator\|GoRouter\|context\.go\|context\.push" lib/features/*/domain/ 2>/dev/null; then
+            echo "::error::❌ Found navigation logic in domain layer"
+            echo "::error::Domain layer should not contain navigation logic. Keep it in presentation layer."
+            VIOLATIONS=$((VIOLATIONS + 1))
+          else
+            echo "✅ No navigation in domain layer"
+          fi
+        fi
+        
+        # Additional checks can be added here
+        # Example: Check for UI imports in domain layer
+        if grep -rn "import 'package:flutter/material.dart'" lib/features/*/domain/ 2>/dev/null; then
+          echo "::warning::⚠️ Found Flutter UI imports in domain layer"
+          echo "::warning::Domain layer should be UI-framework agnostic"
+        fi
+        
+        echo "::endgroup::"
+        
+        if [ $VIOLATIONS -gt 0 ]; then
+          echo "::error::❌ Found $VIOLATIONS architecture violation(s)"
+          echo "## ❌ Architecture Violations" >> $GITHUB_STEP_SUMMARY
+          echo "Found **$VIOLATIONS** violation(s). See logs for details." >> $GITHUB_STEP_SUMMARY
+          exit 1
+        else
+          echo "✅ All architecture checks passed"
+          echo "## ✅ Architecture Checks" >> $GITHUB_STEP_SUMMARY
+          echo "All architecture checks passed successfully!" >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
+    
+    - name: Generate Analysis Summary
+      if: always()
+      run: |
+        echo "## 🔍 Code Analysis Results" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.analyze.outcome }}" == "success" ]; then
+          echo "✅ **Flutter Analyze**: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Flutter Analyze**: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ inputs.architecture-checks }}" == "true" ]; then
+          if [ "${{ steps.architecture.outcome }}" == "success" ]; then
+            echo "✅ **Architecture Checks**: Passed" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.architecture.outcome }}" == "failure" ]; then
+            echo "❌ **Architecture Checks**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+      shell: bash
+
+branding:
+  icon: 'search'
+  color: 'purple'

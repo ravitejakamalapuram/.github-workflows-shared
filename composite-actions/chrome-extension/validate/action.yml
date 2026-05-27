@@ -1,0 +1,158 @@
+name: 'Validate Chrome Extension'
+description: 'Validates manifest.json and required extension files'
+author: 'Your Organization'
+
+inputs:
+  extension-dir:
+    description: 'Directory containing extension files'
+    required: false
+    default: 'extension'
+  manifest-version:
+    description: 'Expected manifest version (2 or 3)'
+    required: false
+    default: '3'
+  check-icons:
+    description: 'Validate that declared icons exist'
+    required: false
+    default: 'true'
+  strict-mode:
+    description: 'Enable strict validation (fail on warnings)'
+    required: false
+    default: 'false'
+
+outputs:
+  validation-status:
+    description: 'Validation status (success/failure)'
+    value: ${{ steps.validate.outcome }}
+  manifest-version:
+    description: 'Detected manifest version'
+    value: ${{ steps.manifest-info.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check required extension files
+      id: validate
+      run: |
+        set -e
+        echo "::group::Validating Extension Structure"
+        
+        EXT_DIR="${{ inputs.extension-dir }}"
+        
+        # Check manifest.json exists
+        if [ ! -f "$EXT_DIR/manifest.json" ]; then
+          echo "::error::Missing manifest.json in $EXT_DIR"
+          exit 1
+        fi
+        echo "✅ manifest.json found"
+        
+        # Validate JSON structure
+        if ! python3 -m json.tool "$EXT_DIR/manifest.json" > /dev/null 2>&1; then
+          echo "::error::manifest.json is not valid JSON"
+          exit 1
+        fi
+        echo "✅ manifest.json is valid JSON"
+        
+        # Check manifest version
+        ACTUAL_VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json'))['manifest_version'])")
+        echo "Detected manifest_version: $ACTUAL_VERSION"
+        
+        if [ "$ACTUAL_VERSION" != "${{ inputs.manifest-version }}" ]; then
+          MSG="Expected manifest_version ${{ inputs.manifest-version }}, found $ACTUAL_VERSION"
+          if [ "${{ inputs.strict-mode }}" == "true" ]; then
+            echo "::error::$MSG"
+            exit 1
+          else
+            echo "::warning::$MSG"
+          fi
+        fi
+        
+        # Check for background script (MV2 vs MV3)
+        if [ "$ACTUAL_VERSION" == "3" ]; then
+          if [ ! -f "$EXT_DIR/background.js" ] && [ ! -f "$EXT_DIR/service-worker.js" ]; then
+            echo "::warning::No background.js or service-worker.js found (MV3)"
+          else
+            echo "✅ Background script found"
+          fi
+        fi
+        
+        echo "::endgroup::"
+      shell: bash
+    
+    - name: Extract Manifest Info
+      id: manifest-info
+      run: |
+        EXT_DIR="${{ inputs.extension-dir }}"
+        
+        VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json'))['manifest_version'])")
+        NAME=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json')).get('name', 'Unknown'))")
+        EXT_VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json')).get('version', 'Unknown'))")
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "name=$NAME" >> $GITHUB_OUTPUT
+        echo "extension_version=$EXT_VERSION" >> $GITHUB_OUTPUT
+        
+        echo "📦 Extension: $NAME v$EXT_VERSION (Manifest v$VERSION)"
+      shell: bash
+    
+    - name: Validate Icon Files
+      if: inputs.check-icons == 'true'
+      run: |
+        EXT_DIR="${{ inputs.extension-dir }}"
+        
+        echo "::group::Validating Icon Files"
+        python3 << 'PYTHON_SCRIPT'
+import json
+import os
+import sys
+
+manifest_path = "${{ inputs.extension-dir }}/manifest.json"
+with open(manifest_path) as f:
+    data = json.load(f)
+
+missing_icons = []
+
+# Check icons
+if 'icons' in data:
+    for size, path in data['icons'].items():
+        full_path = os.path.join("${{ inputs.extension-dir }}", path)
+        if not os.path.exists(full_path):
+            missing_icons.append(f"icons.{size}: {path}")
+
+# Check action icons (MV3) or browser_action icons (MV2)
+action_key = 'action' if data.get('manifest_version') == 3 else 'browser_action'
+if action_key in data and 'default_icon' in data[action_key]:
+    icons = data[action_key]['default_icon']
+    if isinstance(icons, dict):
+        for size, path in icons.items():
+            full_path = os.path.join("${{ inputs.extension-dir }}", path)
+            if not os.path.exists(full_path):
+                missing_icons.append(f"{action_key}.default_icon.{size}: {path}")
+
+if missing_icons:
+    print("::error::Missing icon files:")
+    for icon in missing_icons:
+        print(f"::error::  - {icon}")
+    sys.exit(1)
+else:
+    print("✅ All declared icon files exist")
+PYTHON_SCRIPT
+        echo "::endgroup::"
+      shell: bash
+    
+    - name: Check JavaScript Syntax
+      run: |
+        echo "::group::Checking JavaScript Syntax"
+        find ${{ inputs.extension-dir }} -name "*.js" | while read f; do
+          if ! node -c "$f" 2>/dev/null; then
+            echo "::error::Syntax error in $f"
+            exit 1
+          fi
+        done
+        echo "✅ All JS files pass syntax check"
+        echo "::endgroup::"
+      shell: bash
+
+branding:
+  icon: 'check-circle'
+  color: 'green'

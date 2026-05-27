@@ -1,0 +1,68 @@
+{
+  "description": "Chrome Extension project configuration defaults",
+  "node": {
+    "version": "20",
+    "alternateVersions": ["18", "20", "22"],
+    "packageManager": "npm"
+  },
+  "manifest": {
+    "expectedVersion": 3,
+    "validateIcons": true,
+    "strictMode": false
+  },
+  "linting": {
+    "enabled": true,
+    "maxWarnings": 0,
+    "autoFix": false,
+    "ignorePatterns": [
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      "*.min.js"
+    ]
+  },
+  "testing": {
+    "unit": {
+      "enabled": true,
+      "framework": "node",
+      "scriptName": "test",
+      "coverage": false
+    },
+    "e2e": {
+      "enabled": true,
+      "framework": "playwright",
+      "browser": "chromium",
+      "headless": true,
+      "scriptPattern": "tests/smoke_*.py",
+      "pythonVersion": "3.11",
+      "uploadArtifactsOnFailure": true,
+      "retentionDays": 7
+    }
+  },
+  "packaging": {
+    "outputName": "extension",
+    "excludePatterns": [
+      "*.DS_Store",
+      "*__pycache__*",
+      "*.git*",
+      "node_modules",
+      "tests",
+      "*.map"
+    ],
+    "includeSourceMaps": false
+  },
+  "publishing": {
+    "chromeWebStore": {
+      "autoPublish": true,
+      "publishTarget": "default",
+      "targets": ["default", "trustedTesters"]
+    },
+    "firefoxAddons": {
+      "enabled": false,
+      "channel": "listed"
+    },
+    "edgeAddons": {
+      "enabled": false
+    }
+  }
+}

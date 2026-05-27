@@ -1,0 +1,84 @@
+name: 'Deploy to Google Play Store'
+description: 'Uploads AAB to Google Play Store using service account'
+author: 'Your Organization'
+
+inputs:
+  service-account-json:
+    description: 'Google Play service account JSON (plain text or base64)'
+    required: true
+  package-name:
+    description: 'Android package name (e.g., com.example.app)'
+    required: true
+  aab-path:
+    description: 'Path to the AAB file to upload'
+    required: true
+  track:
+    description: 'Release track (internal, alpha, beta, production)'
+    required: false
+    default: 'alpha'
+  release-status:
+    description: 'Release status (completed, draft, halted, inProgress)'
+    required: false
+    default: 'completed'
+  user-fraction:
+    description: 'Rollout percentage (0.0 to 1.0, only for production)'
+    required: false
+    default: '1.0'
+  whats-new-dir:
+    description: 'Directory containing release notes (optional)'
+    required: false
+    default: ''
+
+outputs:
+  upload-status:
+    description: 'Upload status (success/failure)'
+    value: ${{ steps.upload.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Inputs
+      run: |
+        if [ ! -f "${{ inputs.aab-path }}" ]; then
+          echo "❌ AAB file not found: ${{ inputs.aab-path }}"
+          exit 1
+        fi
+        
+        echo "✅ AAB file found: ${{ inputs.aab-path }}"
+        echo "📦 Package: ${{ inputs.package-name }}"
+        echo "🎯 Track: ${{ inputs.track }}"
+        echo "📊 User Fraction: ${{ inputs.user-fraction }}"
+      shell: bash
+    
+    - name: Upload to Google Play
+      id: upload
+      uses: r0adkll/upload-google-play@v1
+      with:
+        serviceAccountJsonPlainText: ${{ inputs.service-account-json }}
+        packageName: ${{ inputs.package-name }}
+        releaseFiles: ${{ inputs.aab-path }}
+        track: ${{ inputs.track }}
+        status: ${{ inputs.release-status }}
+        userFraction: ${{ inputs.user-fraction }}
+        whatsNewDirectory: ${{ inputs.whats-new-dir }}
+    
+    - name: Upload Summary
+      if: always()
+      run: |
+        echo "## 🚀 Google Play Deployment" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.upload.outcome }}" == "success" ]; then
+          echo "✅ Successfully uploaded to **${{ inputs.track }}** track" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Upload to Google Play failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "- **Package**: \`${{ inputs.package-name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Track**: ${{ inputs.track }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ inputs.release-status }}" >> $GITHUB_STEP_SUMMARY
+        [ "${{ inputs.track }}" == "production" ] && echo "- **Rollout**: $(echo "${{ inputs.user-fraction }} * 100" | bc)%" >> $GITHUB_STEP_SUMMARY
+      shell: bash
+
+branding:
+  icon: 'upload-cloud'
+  color: 'green'
