@@ -1,0 +1,163 @@
+name: 'Flutter Version Bump'
+description: 'Reads and updates version name and build number in pubspec.yaml and related files'
+author: 'Your Organization'
+
+inputs:
+  bump-type:
+    description: 'Version bump type (major, minor, patch, or auto)'
+    required: false
+    default: 'patch'
+  pubspec-path:
+    description: 'Path to pubspec.yaml'
+    required: false
+    default: 'pubspec.yaml'
+  update-dart-file:
+    description: 'Path to a Dart file containing version constants to update'
+    required: false
+    default: ''
+  dart-version-var:
+    description: 'Variable name for version in the Dart file'
+    required: false
+    default: '_appVersion'
+  dart-build-var:
+    description: 'Variable name for build number in the Dart file'
+    required: false
+    default: '_buildNumber'
+  fastlane-changelog:
+    description: 'Create fastlane changelog metadata ("true" or "false")'
+    required: false
+    default: 'false'
+  changelog-content:
+    description: 'Changelog content to write to the fastlane folder'
+    required: false
+    default: ''
+
+outputs:
+  new-version:
+    description: 'New version name (e.g. 1.0.1)'
+    value: ${{ steps.bump.outputs.new-version }}
+  new-build-number:
+    description: 'New build number (e.g. 252)'
+    value: ${{ steps.bump.outputs.new-build-number }}
+  new-full-version:
+    description: 'Full version string (e.g. 1.0.1+252)'
+    value: ${{ steps.bump.outputs.new-full-version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Parse and update version
+      id: bump
+      run: |
+        PUBSPEC_PATH="${{ inputs.pubspec-path }}"
+        BUMP_TYPE="${{ inputs.bump-type }}"
+        UPDATE_DART_FILE="${{ inputs.update-dart-file }}"
+        DART_VERSION_VAR="${{ inputs.dart-version-var }}"
+        DART_BUILD_VAR="${{ inputs.dart-build-var }}"
+        FASTLANE_CHANGELOG="${{ inputs.fastlane-changelog }}"
+        CHANGELOG_CONTENT="${{ inputs.changelog-content }}"
+
+        if [ ! -f "$PUBSPEC_PATH" ]; then
+          echo "::error::pubspec.yaml not found at $PUBSPEC_PATH"
+          exit 1
+        fi
+
+        # 1. Parse current version and build number
+        FULL_VERSION=$(grep '^version:' "$PUBSPEC_PATH" | sed 's/version: //')
+        VERSION_NAME=${FULL_VERSION%%+*}
+        BUILD_NUM=${FULL_VERSION#*+}
+        
+        # Fallback if no build number is specified
+        if [ "$BUILD_NUM" = "$VERSION_NAME" ]; then
+          BUILD_NUM=0
+        fi
+
+        echo "📦 Current full version: $FULL_VERSION"
+        echo "📦 Current version name: $VERSION_NAME"
+        echo "📦 Current build number: $BUILD_NUM"
+
+        # 2. Determine bump type
+        BUMP="$BUMP_TYPE"
+        if [ "$BUMP_TYPE" == "auto" ]; then
+          git fetch --tags --force 2>/dev/null || true
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LATEST_TAG" ]; then
+            RANGE="HEAD~10..HEAD"
+          else
+            RANGE="$LATEST_TAG..HEAD"
+          fi
+          
+          COMMITS=$(git log $RANGE --pretty=%s 2>/dev/null || echo "")
+          
+          if echo "$COMMITS" | grep -q "^BREAKING CHANGE:\|^feat!:\|^fix!:"; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -q "^feat:"; then
+            BUMP="minor"
+          else
+            BUMP="patch"
+          fi
+          echo "🤖 Auto-detected bump type: $BUMP"
+        fi
+
+        # 3. Calculate new version name
+        IFS='.' read -ra VERSION_PARTS <<< "$VERSION_NAME"
+        MAJOR=${VERSION_PARTS[0]:-1}
+        MINOR=${VERSION_PARTS[1]:-0}
+        PATCH=${VERSION_PARTS[2]:-0}
+        
+        case $BUMP in
+          major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+          minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+          patch) PATCH=$((PATCH + 1)) ;;
+        esac
+        
+        NEW_VERSION_NAME="$MAJOR.$MINOR.$PATCH"
+        NEW_BUILD_NUM=$((BUILD_NUM + 1))
+        NEW_FULL_VERSION="${NEW_VERSION_NAME}+${NEW_BUILD_NUM}"
+
+        echo "✅ Calculated new version name: $NEW_VERSION_NAME"
+        echo "✅ Calculated new build number: $NEW_BUILD_NUM"
+        echo "✅ Calculated new full version: $NEW_FULL_VERSION"
+
+        # Cross-platform sed helper
+        sed_inplace() {
+          local expr="$1"
+          local file="$2"
+          if sed --version >/dev/null 2>&1; then
+            sed -i "$expr" "$file"
+          else
+            sed -i "" "$expr" "$file"
+          fi
+        }
+
+        # 4. Update pubspec.yaml
+        sed_inplace "s/^version: .*/version: $NEW_FULL_VERSION/" "$PUBSPEC_PATH"
+        echo "✅ Updated pubspec.yaml version"
+
+        # 5. Update Dart file if specified
+        if [ -n "$UPDATE_DART_FILE" ]; then
+          if [ -f "$UPDATE_DART_FILE" ]; then
+            sed_inplace "s/$DART_VERSION_VAR = '.*'/$DART_VERSION_VAR = '$NEW_VERSION_NAME'/" "$UPDATE_DART_FILE"
+            sed_inplace "s/$DART_BUILD_VAR = '.*'/$DART_BUILD_VAR = '$NEW_BUILD_NUM'/" "$UPDATE_DART_FILE"
+            echo "✅ Updated version constants in $UPDATE_DART_FILE"
+          else
+            echo "::warning::Dart file not found: $UPDATE_DART_FILE"
+          fi
+        fi
+
+        # 6. Create fastlane changelog metadata if specified
+        if [ "$FASTLANE_CHANGELOG" == "true" ]; then
+          mkdir -p fastlane/metadata/android/en-US/changelogs
+          echo "$CHANGELOG_CONTENT" > "fastlane/metadata/android/en-US/changelogs/${NEW_BUILD_NUM}.txt"
+          echo "✅ Created Fastlane changelog metadata"
+        fi
+
+        # Output variables for GHA context
+        echo "new-version=$NEW_VERSION_NAME" >> $GITHUB_OUTPUT
+        echo "new-build-number=$NEW_BUILD_NUM" >> $GITHUB_OUTPUT
+        echo "new-full-version=$NEW_FULL_VERSION" >> $GITHUB_OUTPUT
+      shell: bash
+
+branding:
+  icon: 'edit-3'
+  color: 'orange'

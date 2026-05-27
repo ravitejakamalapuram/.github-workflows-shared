@@ -1,0 +1,54 @@
+name: 'Promote Google Play Track'
+description: 'Promotes an Android release from one Google Play track to another (e.g., Alpha to Production)'
+author: 'Your Organization'
+
+inputs:
+  service-account-json:
+    description: 'Service account JSON credentials'
+    required: true
+  package-name:
+    description: 'Android application package name (e.g. com.example.app)'
+    required: true
+  source-track:
+    description: 'Source track to promote from'
+    required: false
+    default: 'alpha'
+  target-track:
+    description: 'Target track to promote to'
+    required: false
+    default: 'production'
+  rollout-percentage:
+    description: 'Percentage of users to rollout to (for staged rollout)'
+    required: false
+    default: '100'
+  update-priority:
+    description: 'In-app update priority (0-5, higher = more urgent)'
+    required: false
+    default: '2'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Google Play API Client
+      run: |
+        echo "::group::Install googleapis client"
+        cd "${{ github.action_path }}"
+        npm install googleapis@105 --no-save --no-audit --no-fund
+        echo "::endgroup::"
+      shell: bash
+
+    - name: Execute Promotion Script
+      run: |
+        node "${{ github.action_path }}/promote.js"
+      env:
+        SERVICE_ACCOUNT_JSON: ${{ inputs.service-account-json }}
+        PACKAGE_NAME: ${{ inputs.package-name }}
+        SOURCE_TRACK: ${{ inputs.source-track }}
+        TARGET_TRACK: ${{ inputs.target-track }}
+        ROLLOUT_PERCENTAGE: ${{ inputs.rollout-percentage }}
+        UPDATE_PRIORITY: ${{ inputs.update-priority }}
+      shell: bash
+
+branding:
+  icon: 'arrow-up-right'
+  color: 'green'

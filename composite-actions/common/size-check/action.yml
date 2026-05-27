@@ -1,0 +1,80 @@
+name: 'Check File Size'
+description: 'Checks the size of a build artifact and warns or fails if it exceeds a limit'
+author: 'Your Organization'
+
+inputs:
+  file-path:
+    description: 'Path to the file to check'
+    required: true
+  max-size-mb:
+    description: 'Maximum size in MB before warning/failing'
+    required: false
+    default: '50'
+  fail-on-exceed:
+    description: 'Fail the build if size is exceeded ("true" or "false")'
+    required: false
+    default: 'false'
+
+outputs:
+  size-bytes:
+    description: 'File size in bytes'
+    value: ${{ steps.check.outputs.size-bytes }}
+  size-mb:
+    description: 'File size in megabytes'
+    value: ${{ steps.check.outputs.size-mb }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Verify and measure file size
+      id: check
+      run: |
+        FILE_PATH="${{ inputs.file-path }}"
+        MAX_SIZE_MB="${{ inputs.max-size-mb }}"
+        FAIL_ON_EXCEED="${{ inputs.fail-on-exceed }}"
+
+        if [ ! -f "$FILE_PATH" ]; then
+          echo "::error::File not found: $FILE_PATH"
+          exit 1
+        fi
+
+        # Determine OS and get file size in bytes
+        if stat --help >/dev/null 2>&1; then
+          SIZE_BYTES=$(stat -c%s "$FILE_PATH")
+        else
+          SIZE_BYTES=$(stat -f%z "$FILE_PATH")
+        fi
+
+        # Convert size to MB
+        SIZE_MB=$(echo "scale=2; $SIZE_BYTES / 1024 / 1024" | bc)
+        # Integer division for threshold check
+        SIZE_MB_INT=${SIZE_MB%.*}
+
+        echo "size-bytes=$SIZE_BYTES" >> $GITHUB_OUTPUT
+        echo "size-mb=$SIZE_MB" >> $GITHUB_OUTPUT
+
+        echo "📦 File Size: ${SIZE_MB} MB ($SIZE_BYTES bytes)"
+
+        echo "## 📦 File Size Report" >> $GITHUB_STEP_SUMMARY
+        echo "- **File**: \`$(basename "$FILE_PATH")\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Size**: ${SIZE_MB} MB" >> $GITHUB_STEP_SUMMARY
+        echo "- **Limit**: ${MAX_SIZE_MB} MB" >> $GITHUB_STEP_SUMMARY
+
+        if [ "$SIZE_MB_INT" -gt "$MAX_SIZE_MB" ]; then
+          MSG="⚠️ File size (${SIZE_MB} MB) exceeds maximum allowed (${MAX_SIZE_MB} MB)"
+          if [ "$FAIL_ON_EXCEED" == "true" ]; then
+            echo "::error::$MSG"
+            echo "❌ **Failed**: Size limit exceeded!" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "::warning::$MSG"
+            echo "⚠️ **Warning**: Size limit exceeded!" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "✅ File size is within limits" >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
+
+branding:
+  icon: 'database'
+  color: 'blue'

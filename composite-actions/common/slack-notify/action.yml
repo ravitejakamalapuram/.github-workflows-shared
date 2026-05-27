@@ -1,0 +1,121 @@
+name: 'Slack Notification'
+description: 'Sends a standardized, premium Slack notification for CI/CD status'
+author: 'Your Organization'
+
+inputs:
+  slack-webhook-url:
+    description: 'Slack webhook URL'
+    required: true
+  status:
+    description: 'Job status (success, failure, cancelled)'
+    required: true
+  app-name:
+    description: 'Name of the application'
+    required: false
+    default: 'App'
+  version:
+    description: 'Application version'
+    required: false
+    default: ''
+  build-number:
+    description: 'Build number'
+    required: false
+    default: ''
+  track:
+    description: 'Deployment track (e.g., Alpha, Beta, Production)'
+    required: false
+    default: ''
+  size-mb:
+    description: 'Build size in MB'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Construct Slack Payload
+      id: slack_payload
+      run: |
+        STATUS="${{ inputs.status }}"
+        APP_NAME="${{ inputs.app-name }}"
+        VERSION="${{ inputs.version }}"
+        BUILD_NUMBER="${{ inputs.build-number }}"
+        TRACK="${{ inputs.track }}"
+        SIZE_MB="${{ inputs.size-mb }}"
+
+        # Determine color, icon and header text
+        if [ "$STATUS" == "success" ]; then
+          COLOR="#2eb886" # Green
+          STATUS_TEXT="✅ *Deployment Success*"
+        elif [ "$STATUS" == "failure" ]; then
+          COLOR="#a30200" # Red
+          STATUS_TEXT="❌ *Deployment Failed*"
+        else
+          COLOR="#e8a723" # Amber
+          STATUS_TEXT="⚠️ *Deployment Warning/Cancelled*"
+        fi
+
+        # Start constructing fields array in JSON using jq
+        FIELDS="[]"
+
+        if [ -n "$VERSION" ]; then
+          FIELDS=$(echo "$FIELDS" | jq --arg val "$VERSION" '. += [{"type": "mrkdwn", "text": "*Version:*\n\u200e'"$VERSION"'"}]')
+        fi
+
+        if [ -n "$BUILD_NUMBER" ]; then
+          FIELDS=$(echo "$FIELDS" | jq --arg val "$BUILD_NUMBER" '. += [{"type": "mrkdwn", "text": "*Build Number:*\n'"$BUILD_NUMBER"'"}]')
+        fi
+
+        if [ -n "$TRACK" ]; then
+          FIELDS=$(echo "$FIELDS" | jq --arg val "$TRACK" '. += [{"type": "mrkdwn", "text": "*Track:*\n'"$TRACK"'"}]')
+        fi
+
+        if [ -n "$SIZE_MB" ]; then
+          FIELDS=$(echo "$FIELDS" | jq --arg val "$SIZE_MB" '. += [{"type": "mrkdwn", "text": "*App Size:*\n'"$SIZE_MB"' MB"}]')
+        fi
+
+        # Base section block
+        SECTION_BLOCK=$(jq -n \
+          --arg status_text "$STATUS_TEXT" \
+          --arg app_name "$APP_NAME" \
+          '{
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: ($status_text + " for *" + $app_name + "*")
+            }
+          }')
+
+        # Add fields to the section block if fields exist
+        FIELD_COUNT=$(echo "$FIELDS" | jq 'length')
+        if [ "$FIELD_COUNT" -gt 0 ]; then
+          SECTION_BLOCK=$(echo "$SECTION_BLOCK" | jq --argjson fields "$FIELDS" '. + {fields: $fields}')
+        fi
+
+        # Put everything inside an attachment
+        PAYLOAD=$(jq -n \
+          --arg color "$COLOR" \
+          --argjson block "$SECTION_BLOCK" \
+          '{
+            attachments: [
+              {
+                color: $color,
+                blocks: [$block]
+              }
+            ]
+          }')
+
+        # Escape the payload for multiline output
+        {
+          echo 'payload<<EOF'
+          echo "$PAYLOAD"
+          echo EOF
+        } >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Post to Slack
+      uses: slackapi/slack-github-action@v1
+      with:
+        payload: ${{ steps.slack_payload.outputs.payload }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ inputs.slack-webhook-url }}
