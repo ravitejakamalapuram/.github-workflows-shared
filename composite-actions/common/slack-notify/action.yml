@@ -33,8 +33,7 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Construct Slack Payload
-      id: slack_payload
+    - name: Post Slack Notification via cURL
       run: |
         STATUS="${{ inputs.status }}"
         APP_NAME="${{ inputs.app-name }}"
@@ -42,80 +41,65 @@ runs:
         BUILD_NUMBER="${{ inputs.build-number }}"
         TRACK="${{ inputs.track }}"
         SIZE_MB="${{ inputs.size-mb }}"
+        SLACK_WEBHOOK_URL="${{ inputs.slack-webhook-url }}"
 
         # Determine color, icon and header text
         if [ "$STATUS" == "success" ]; then
           COLOR="#2eb886" # Green
-          STATUS_TEXT="✅ *Deployment Success*"
+          STATUS_TEXT="✅ *Deployment Success for $APP_NAME*"
         elif [ "$STATUS" == "failure" ]; then
           COLOR="#a30200" # Red
-          STATUS_TEXT="❌ *Deployment Failed*"
+          STATUS_TEXT="❌ *Deployment Failed for $APP_NAME*"
         else
           COLOR="#e8a723" # Amber
-          STATUS_TEXT="⚠️ *Deployment Warning/Cancelled*"
+          STATUS_TEXT="⚠️ *Deployment Warning/Cancelled for $APP_NAME*"
         fi
 
         # Start constructing fields array in JSON using jq
         FIELDS="[]"
 
         if [ -n "$VERSION" ]; then
-          FIELDS=$(echo "$FIELDS" | jq --arg val "$VERSION" '. += [{"type": "mrkdwn", "text": "*Version:*\n\u200e'"$VERSION"'"}]')
+          FIELDS=$(echo "$FIELDS" | jq --arg val "$VERSION" '. += [{"title": "Version", "value": $val, "short": true}]')
         fi
 
         if [ -n "$BUILD_NUMBER" ]; then
-          FIELDS=$(echo "$FIELDS" | jq --arg val "$BUILD_NUMBER" '. += [{"type": "mrkdwn", "text": "*Build Number:*\n'"$BUILD_NUMBER"'"}]')
+          FIELDS=$(echo "$FIELDS" | jq --arg val "$BUILD_NUMBER" '. += [{"title": "Build Number", "value": $val, "short": true}]')
         fi
 
         if [ -n "$TRACK" ]; then
-          FIELDS=$(echo "$FIELDS" | jq --arg val "$TRACK" '. += [{"type": "mrkdwn", "text": "*Track:*\n'"$TRACK"'"}]')
+          FIELDS=$(echo "$FIELDS" | jq --arg val "$TRACK" '. += [{"title": "Track", "value": $val, "short": true}]')
         fi
 
         if [ -n "$SIZE_MB" ]; then
-          FIELDS=$(echo "$FIELDS" | jq --arg val "$SIZE_MB" '. += [{"type": "mrkdwn", "text": "*App Size:*\n'"$SIZE_MB"' MB"}]')
+          FIELDS=$(echo "$FIELDS" | jq --arg val "$SIZE_MB" '. += [{"title": "App Size", "value": ($val + " MB"), "short": true}]')
         fi
 
-        # Base section block
-        SECTION_BLOCK=$(jq -n \
-          --arg status_text "$STATUS_TEXT" \
-          --arg app_name "$APP_NAME" \
-          '{
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: ($status_text + " for *" + $app_name + "*")
-            }
-          }')
-
-        # Add fields to the section block if fields exist
-        FIELD_COUNT=$(echo "$FIELDS" | jq 'length')
-        if [ "$FIELD_COUNT" -gt 0 ]; then
-          SECTION_BLOCK=$(echo "$SECTION_BLOCK" | jq --argjson fields "$FIELDS" '. + {fields: $fields}')
-        fi
-
-        # Put everything inside an attachment
+        # Construct overall attachment payload
         PAYLOAD=$(jq -n \
+          --arg text "$STATUS_TEXT" \
           --arg color "$COLOR" \
-          --argjson block "$SECTION_BLOCK" \
+          --argjson fields "$FIELDS" \
           '{
+            text: $text,
             attachments: [
               {
                 color: $color,
-                blocks: [$block]
+                fields: $fields
               }
             ]
           }')
 
-        # Escape the payload for multiline output
-        {
-          echo 'payload<<EOF'
-          echo "$PAYLOAD"
-          echo EOF
-        } >> $GITHUB_OUTPUT
-      shell: bash
+        echo "🚀 Sending Slack Webhook payload..."
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "$SLACK_WEBHOOK_URL")
+        
+        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+        BODY=$(echo "$RESPONSE" | sed '$d')
 
-    - name: Post to Slack
-      uses: slackapi/slack-github-action@v1
-      with:
-        payload: ${{ steps.slack_payload.outputs.payload }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ inputs.slack-webhook-url }}
+        if [ "$HTTP_CODE" -ne 200 ]; then
+          echo "❌ Slack Webhook POST failed with status $HTTP_CODE"
+          echo "Response: $BODY"
+          exit 1
+        fi
+        
+        echo "✅ Slack notification sent successfully!"
+      shell: bash
