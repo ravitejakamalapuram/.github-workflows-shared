@@ -68,25 +68,29 @@ runs:
         
         echo "::group::Generating Changelog"
         
+        # ⚡ Bolt Optimization: Fetch commits once instead of 4 times for conventional-commits grouping
+        git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE > all_commits.txt || true
+
         if [ "${{ inputs.group-by }}" == "conventional-commits" ]; then
           # Group by conventional commit types
           {
             echo "## 🚀 Features"
-            git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE | grep "^- feat" || echo "  _No new features_"
+            if [ -s all_commits.txt ]; then grep "^- feat" all_commits.txt || echo "  _No new features_"; else echo "  _No new features_"; fi
             echo ""
             echo "## 🐛 Bug Fixes"
-            git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE | grep "^- fix" || echo "  _No bug fixes_"
+            if [ -s all_commits.txt ]; then grep "^- fix" all_commits.txt || echo "  _No bug fixes_"; else echo "  _No bug fixes_"; fi
             echo ""
             echo "## 📝 Documentation"
-            git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE | grep "^- docs" || echo "  _No documentation changes_"
+            if [ -s all_commits.txt ]; then grep "^- docs" all_commits.txt || echo "  _No documentation changes_"; else echo "  _No documentation changes_"; fi
             echo ""
             echo "## 🔧 Other Changes"
-            git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE | grep -v "^- feat\|^- fix\|^- docs" || echo "  _No other changes_"
+            if [ -s all_commits.txt ]; then grep -v "^- feat\|^- fix\|^- docs" all_commits.txt || echo "  _No other changes_"; else echo "  _No other changes_"; fi
           } > temp_changelog.md
         else
           # Simple list
-          git log --oneline --pretty=format:"- %s (%h)${{ inputs.include-authors == 'true' && ' by %an' || '' }}" $RANGE > temp_changelog.md
+          cat all_commits.txt > temp_changelog.md
         fi
+        rm -f all_commits.txt
         
         CONTENT=$(cat temp_changelog.md)
         
