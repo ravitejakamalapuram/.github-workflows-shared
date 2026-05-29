@@ -102,41 +102,41 @@ runs:
         
         echo "::group::Validating Icon Files"
         python3 << 'PYTHON_SCRIPT'
-import json
-import os
-import sys
+        import json
+        import os
+        import sys
 
-manifest_path = "${{ inputs.extension-dir }}/manifest.json"
-with open(manifest_path) as f:
-    data = json.load(f)
+        manifest_path = "${{ inputs.extension-dir }}/manifest.json"
+        with open(manifest_path) as f:
+            data = json.load(f)
 
-missing_icons = []
+        missing_icons = []
 
-# Check icons
-if 'icons' in data:
-    for size, path in data['icons'].items():
-        full_path = os.path.join("${{ inputs.extension-dir }}", path)
-        if not os.path.exists(full_path):
-            missing_icons.append(f"icons.{size}: {path}")
+        # Check icons
+        if 'icons' in data:
+            for size, path in data['icons'].items():
+                full_path = os.path.join("${{ inputs.extension-dir }}", path)
+                if not os.path.exists(full_path):
+                    missing_icons.append(f"icons.{size}: {path}")
 
-# Check action icons (MV3) or browser_action icons (MV2)
-action_key = 'action' if data.get('manifest_version') == 3 else 'browser_action'
-if action_key in data and 'default_icon' in data[action_key]:
-    icons = data[action_key]['default_icon']
-    if isinstance(icons, dict):
-        for size, path in icons.items():
-            full_path = os.path.join("${{ inputs.extension-dir }}", path)
-            if not os.path.exists(full_path):
-                missing_icons.append(f"{action_key}.default_icon.{size}: {path}")
+        # Check action icons (MV3) or browser_action icons (MV2)
+        action_key = 'action' if data.get('manifest_version') == 3 else 'browser_action'
+        if action_key in data and 'default_icon' in data[action_key]:
+            icons = data[action_key]['default_icon']
+            if isinstance(icons, dict):
+                for size, path in icons.items():
+                    full_path = os.path.join("${{ inputs.extension-dir }}", path)
+                    if not os.path.exists(full_path):
+                        missing_icons.append(f"{action_key}.default_icon.{size}: {path}")
 
-if missing_icons:
-    print("::error::Missing icon files:")
-    for icon in missing_icons:
-        print(f"::error::  - {icon}")
-    sys.exit(1)
-else:
-    print("✅ All declared icon files exist")
-PYTHON_SCRIPT
+        if missing_icons:
+            print("::error::Missing icon files:")
+            for icon in missing_icons:
+                print(f"::error::  - {icon}")
+            sys.exit(1)
+        else:
+            print("✅ All declared icon files exist")
+        PYTHON_SCRIPT
         echo "::endgroup::"
       shell: bash
     
