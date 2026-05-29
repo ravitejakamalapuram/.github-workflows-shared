@@ -4,6 +4,14 @@ This centralized GitHub Actions repository was created to standardize CI/CD work
 
 ## 📦 What's Included
 
+### Reusable Workflows (6 total)
+- ✅ `chrome-extension-ci.yml` - CI workflow for Chrome Extensions
+- ✅ `chrome-extension-cd.yml` - CD workflow for Chrome Extensions
+- ✅ `android-ci.yml` - CI workflow for Android
+- ✅ `android-cd.yml` - CD workflow for Android
+- ✅ `flutter-ci.yml` - CI workflow for Flutter
+- ✅ `flutter-cd.yml` - CD workflow for Flutter
+
 ### Composite Actions (20 total)
 
 #### Android (5 actions)
@@ -98,7 +106,7 @@ This repository was designed to support:
 4. Update documentation
 
 ### For Future Enhancements
-- [ ] Create reusable workflows (`.github/workflows/*.yml`)
+- [x] Create reusable workflows (`.github/workflows/*.yml`)
 - [ ] Add automated testing for actions
 - [ ] Set up version tagging system
 - [ ] Add GitHub releases for the repo itself
@@ -111,7 +119,13 @@ This repository was designed to support:
 
 ```
 .github-workflows-shared/
-├── .github/workflows/          # Reusable workflows (to be created)
+├── .github/workflows/          # Reusable workflows
+│   ├── chrome-extension-ci.yml
+│   ├── chrome-extension-cd.yml
+│   ├── android-ci.yml
+│   ├── android-cd.yml
+│   ├── flutter-ci.yml
+│   └── flutter-cd.yml
 ├── composite-actions/          # Modular building blocks
 │   ├── android/               # 5 Android actions
 │   ├── flutter/               # 5 Flutter actions
@@ -130,12 +144,13 @@ This repository was designed to support:
 │       ├── android-example.yml
 │       ├── flutter-example.yml
 │       └── extension-example.yml
-├── scripts/                   # Helper scripts (to be added)
+├── scripts/                   # Helper scripts
+│   └── onboard-extension.sh   # Extension onboarding wizard
 ├── README.md                  # Main documentation
 ├── SUMMARY.md                 # This file
 └── LICENSE                    # MIT License
 
-Total: 20 composite actions, 4 config files, 6 docs, ready for use
+Total: 6 reusable workflows, 20 composite actions, 1 onboarding script, 4 config files, 6 docs
 ```
 
 ## 🎉 Success Metrics

@@ -1,0 +1,330 @@
+name: Reusable Flutter CD
+
+on:
+  workflow_call:
+    inputs:
+      action:
+        description: 'Action to perform (bump-and-deploy, deploy-tag, promote-production)'
+        required: false
+        type: string
+        default: 'bump-and-deploy'
+      tag:
+        description: 'Tag to deploy (required for deploy-tag)'
+        required: false
+        type: string
+        default: ''
+      rollout-percentage:
+        description: 'Rollout percentage for production promotion'
+        required: false
+        type: string
+        default: '20'
+      update-priority:
+        description: 'In-app update priority for production promotion'
+        required: false
+        type: string
+        default: '2'
+      package-name:
+        description: 'Android application package name'
+        required: false
+        type: string
+        default: 'com.invtracker.inv_tracker'
+      update-dart-file:
+        description: 'Path to Dart file to update with version (optional)'
+        required: false
+        type: string
+        default: ''
+      flutter-channel:
+        description: 'Flutter SDK channel'
+        required: false
+        type: string
+        default: 'stable'
+      android-build-type:
+        description: 'Android build type (appbundle, apk)'
+        required: false
+        type: string
+        default: 'appbundle'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'self-hosted'
+      slack-app-name:
+        description: 'App name in Slack notifications'
+        required: false
+        type: string
+        default: 'InvTrack'
+      slack-track:
+        description: 'Deployment track in Slack notifications'
+        required: false
+        type: string
+        default: 'Alpha'
+    secrets:
+      pat-token:
+        description: 'GitHub Personal Access Token for release commits'
+        required: false
+      android-keystore-base64:
+        description: 'Keystore base64 encoded'
+        required: false
+      android-keystore-password:
+        description: 'Keystore password'
+        required: false
+      android-key-alias:
+        description: 'Key alias'
+        required: false
+      android-key-password:
+        description: 'Key password'
+        required: false
+      play-store-credentials:
+        description: 'Google Play Service Account JSON key'
+        required: false
+      slack-webhook-url:
+        description: 'Slack webhook URL'
+        required: false
+
+jobs:
+  bump-and-deploy:
+    name: Bump Version & Deploy to Play Store (Alpha)
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 60
+    if: |
+      inputs.action == 'bump-and-deploy'
+    
+    steps:
+      - name: Check Commit Message for Release Skip
+        id: check_skip
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit && github.event.head_commit.message || '' }}
+        run: |
+          if [[ "$COMMIT_MSG" == *"[skip-release]"* || "$COMMIT_MSG" == *"chore(release)"* || "$COMMIT_MSG" == "chore:"* ]]; then
+            if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+              echo "skip=true" >> $GITHUB_OUTPUT
+              echo "Skipping automatic release bump for push commit"
+              exit 0
+            fi
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Checkout code
+        if: steps.check_skip.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.pat-token }}
+
+      - name: Configure Git
+        if: steps.check_skip.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+        shell: bash
+
+      - name: Generate Changelog
+        if: steps.check_skip.outputs.skip != 'true'
+        id: changelog
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/changelog@main
+        with:
+          output-file: 'CHANGELOG.md'
+          format: 'markdown'
+          group-by: 'conventional-commits'
+
+      - name: Bump Flutter Version & Update Files
+        if: steps.check_skip.outputs.skip != 'true'
+        id: version
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/version-bump@main
+        with:
+          bump-type: 'auto'
+          update-dart-file: ${{ inputs.update-dart-file }}
+          fastlane-changelog: 'true'
+          changelog-content: ${{ steps.changelog.outputs.latest-changes }}
+
+      - name: Flutter Setup
+        if: steps.check_skip.outputs.skip != 'true'
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/setup@main
+        with:
+          flutter-channel: ${{ inputs.flutter-channel }}
+          cache-pub: 'true'
+
+      - name: Generate Localizations
+        if: steps.check_skip.outputs.skip != 'true'
+        run: flutter gen-l10n
+        shell: bash
+
+      - name: Build Android App Bundle
+        if: steps.check_skip.outputs.skip != 'true'
+        id: build
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/build-android@main
+        with:
+          build-type: ${{ inputs.android-build-type }}
+          build-mode: 'release'
+          obfuscate: 'true'
+          keystore-base64: ${{ secrets.android-keystore-base64 }}
+          keystore-password: ${{ secrets.android-keystore-password }}
+          key-alias: ${{ secrets.android-key-alias }}
+          key-password: ${{ secrets.android-key-password }}
+
+      - name: Track App Size
+        if: steps.check_skip.outputs.skip != 'true'
+        id: app_size
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/size-check@main
+        with:
+          file-path: ${{ steps.build.outputs.build-path }}
+          max-size-mb: '20'
+
+      - name: Deploy to Google Play (Alpha)
+        if: steps.check_skip.outputs.skip != 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.play-store-credentials }}
+          packageName: ${{ inputs.package-name }}
+          releaseFiles: ${{ steps.build.outputs.build-path }}
+          track: alpha
+          status: completed
+          inAppUpdatePriority: 2
+
+      - name: Commit Version Bump
+        if: steps.check_skip.outputs.skip != 'true'
+        run: |
+          git add pubspec.yaml ${{ inputs.update-dart-file }} CHANGELOG.md fastlane/
+          git commit -m "chore(release): bump version to ${{ steps.version.outputs.new-version }}+${{ steps.version.outputs.new-build-number }} [skip-release]"
+          git push origin main
+        shell: bash
+
+      - name: Create GitHub Release
+        if: steps.check_skip.outputs.skip != 'true'
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/create-release@main
+        with:
+          tag-name: v${{ steps.version.outputs.new-version }}
+          release-name: 'Release v${{ steps.version.outputs.new-version }}'
+          body: |
+            ## 📱 ${{ inputs.slack-app-name }} v${{ steps.version.outputs.new-version }}
+
+            **Build Number:** ${{ steps.version.outputs.new-build-number }}
+            **App Size:** ${{ steps.app_size.outputs.size-mb }} MB
+
+            ${{ steps.changelog.outputs.latest-changes }}
+          draft: false
+          prerelease: false
+
+      - name: Slack Notification
+        if: steps.check_skip.outputs.skip != 'true' && (success() || failure())
+        continue-on-error: true
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/slack-notify@main
+        with:
+          slack-webhook-url: ${{ secrets.slack-webhook-url }}
+          status: ${{ job.status }}
+          app-name: ${{ inputs.slack-app-name }}
+          version: ${{ steps.version.outputs.new-version }}
+          build-number: ${{ steps.version.outputs.new-build-number }}
+          track: ${{ inputs.slack-track }}
+          size-mb: ${{ steps.app_size.outputs.size-mb }}
+
+  deploy-tag:
+    name: Deploy Specific Tag to Play Store (Alpha)
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 60
+    if: inputs.action == 'deploy-tag'
+
+    steps:
+      - name: Validate Tag Input
+        run: |
+          if [ -z "${{ inputs.tag }}" ]; then
+            echo "::error::Tag is required for deploy-tag action"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Checkout specific tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          token: ${{ secrets.pat-token }}
+
+      - name: Get version from tag
+        id: version
+        run: |
+          TAG="${{ inputs.tag }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Flutter Setup
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/setup@main
+        with:
+          flutter-channel: ${{ inputs.flutter-channel }}
+          cache-pub: 'true'
+
+      - name: Generate Localizations
+        run: flutter gen-l10n
+        shell: bash
+
+      - name: Build Android App Bundle
+        id: build
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/build-android@main
+        with:
+          build-type: ${{ inputs.android-build-type }}
+          build-mode: 'release'
+          obfuscate: 'true'
+          keystore-base64: ${{ secrets.android-keystore-base64 }}
+          keystore-password: ${{ secrets.android-keystore-password }}
+          key-alias: ${{ secrets.android-key-alias }}
+          key-password: ${{ secrets.android-key-password }}
+
+      - name: Track App Size
+        id: app_size
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/size-check@main
+        with:
+          file-path: ${{ steps.build.outputs.build-path }}
+          max-size-mb: '20'
+
+      - name: Deploy to Google Play (Alpha)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.play-store-credentials }}
+          packageName: ${{ inputs.package-name }}
+          releaseFiles: ${{ steps.build.outputs.build-path }}
+          track: alpha
+          status: completed
+          inAppUpdatePriority: 2
+
+      - name: Slack Notification
+        if: success() || failure()
+        continue-on-error: true
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/slack-notify@main
+        with:
+          slack-webhook-url: ${{ secrets.slack-webhook-url }}
+          status: ${{ job.status }}
+          app-name: ${{ inputs.slack-app-name }}
+          version: ${{ steps.version.outputs.version }}
+          track: ${{ inputs.slack-track }}
+          size-mb: ${{ steps.app_size.outputs.size-mb }}
+
+  promote-production:
+    name: Promote Alpha to Production
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 30
+    if: inputs.action == 'promote-production'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Promote Release to Production
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/promote-play@main
+        with:
+          service-account-json: ${{ secrets.play-store-credentials }}
+          package-name: ${{ inputs.package-name }}
+          source-track: 'alpha'
+          target-track: 'production'
+          rollout-percentage: ${{ inputs.rollout-percentage }}
+          update-priority: ${{ inputs.update-priority }}
+
+      - name: Slack Notification
+        if: success() || failure()
+        continue-on-error: true
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/slack-notify@main
+        with:
+          slack-webhook-url: ${{ secrets.slack-webhook-url }}
+          status: ${{ job.status }}
+          app-name: "${{ inputs.slack-app-name }} (Alpha -> Production)"
+          track: 'Production'

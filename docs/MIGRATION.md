@@ -82,7 +82,7 @@ on:
 
 jobs:
   android-ci:
-    uses: YOUR_ORG/.github-workflows-shared/.github/workflows/android-ci.yml@v1
+    uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/android-ci.yml@main
     with:
       java-version: '17'
       run-tests: true
@@ -106,15 +106,15 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Setup Android
-        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@v1
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/setup@main
         with:
           java-version: '17'
       
       - name: Run Tests
-        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/test@v1
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/test@main
       
       - name: Validate Extension
-        uses: YOUR_ORG/.github-workflows-shared/composite-actions/chrome-extension/validate@v1
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@main
         with:
           extension-dir: 'chrome-extension'
 ```
@@ -146,14 +146,13 @@ jobs:
 ```yaml
 jobs:
   flutter-ci:
-    uses: YOUR_ORG/.github-workflows-shared/.github/workflows/flutter-ci.yml@v1
+    uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/flutter-ci.yml@main
     with:
       flutter-channel: 'stable'
       runner-type: 'self-hosted'
       run-analyzer: true
       run-tests: true
       architecture-checks: true
-      skip-drafts: true
 ```
 
 **Reduction**: 87 lines → 19 lines (78% reduction)
@@ -181,15 +180,30 @@ jobs:
 ```yaml
 jobs:
   extension-ci:
-    uses: YOUR_ORG/.github-workflows-shared/.github/workflows/chrome-extension-ci.yml@v1
+    uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/chrome-extension-ci.yml@main
     with:
       node-version: '20'
       extension-dir: 'extension'
-      run-smoke-tests: true
-      smoke-tests-on-push: false
+      run-lint: true
+      run-unit-tests: true
+      run-e2e-tests: false
 ```
 
 **Reduction**: 181 lines → 15 lines (92% reduction)
+
+#### 🚀 Automated Onboarding for New/Existing Extensions
+Rather than manually creating all config and workflow files, you can automate Chrome Web Store onboarding and CI/CD linking using our central onboarding script:
+
+```bash
+# In the root of your extension repository, run:
+/Users/rkamalapuram/git-personal/.github-workflows-shared/scripts/onboard-extension.sh
+```
+
+This script will:
+1. Auto-generate Chrome Extension boilerplate files (if starting from scratch).
+2. Generate `CHROMEWEBSTORE.md` (listing metadata) and `PRIVACY.md` (privacy policy) with pre-filled permissions justifications based on your `manifest.json`.
+3. Create a `.github/workflows/ci-cd.yml` workflow pointing to the centralized reusable workflows.
+4. Package your extension into `initial-package.zip` and display a step-by-step checklist to guide you through Google API credentials, your first manual Web Store upload, and setting up repository secrets.
 
 ## ⚠️ Common Migration Challenges
 
@@ -207,14 +221,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Android
-        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@v1
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/setup@main
 
       # Custom step
       - name: Generate Build Config
         run: ./scripts/generate-config.sh
 
       - name: Build APK
-        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/build-apk@v1
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/build-apk@main
 ```
 
 ### 2. Project-Specific Secrets
@@ -226,7 +240,7 @@ jobs:
 ```yaml
 jobs:
   deploy:
-    uses: YOUR_ORG/.github-workflows-shared/.github/workflows/android-cd.yml@v1
+    uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/android-cd.yml@main
     secrets:
       PLAY_SERVICE_ACCOUNT_KEY: ${{ secrets.MY_CUSTOM_SECRET_NAME }}
 ```
@@ -240,7 +254,7 @@ jobs:
 ```yaml
 jobs:
   flutter-ci:
-    uses: YOUR_ORG/.github-workflows-shared/.github/workflows/flutter-ci.yml@v1
+    uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/flutter-ci.yml@main
     with:
       runner-type: 'self-hosted'  # or 'ubuntu-latest'
 ```

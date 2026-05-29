@@ -1,0 +1,125 @@
+name: Reusable Chrome Extension CD
+
+on:
+  workflow_call:
+    inputs:
+      extension-dir:
+        description: 'Directory containing extension files'
+        required: false
+        type: string
+        default: 'extension'
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '20'
+      publish-target:
+        description: 'Publish target (default, trustedTesters)'
+        required: false
+        type: string
+        default: 'default'
+      auto-publish:
+        description: 'Auto-publish after upload'
+        required: false
+        type: string
+        default: 'true'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+    secrets:
+      chrome-extension-id:
+        description: 'Chrome Web Store extension ID'
+        required: true
+      chrome-client-id:
+        description: 'Chrome Web Store API client ID'
+        required: true
+      chrome-client-secret:
+        description: 'Chrome Web Store API client secret'
+        required: true
+      chrome-refresh-token:
+        description: 'Chrome Web Store API refresh token'
+        required: true
+
+jobs:
+  cd:
+    name: Package & Release
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 30
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+      
+      - name: Install Dependencies
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          elif [ -f "package.json" ]; then
+            npm install
+          fi
+        shell: bash
+      
+      - name: Generate Changelog
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/changelog@main
+        with:
+          output-file: 'CHANGELOG.md'
+          format: 'markdown'
+      
+      - name: Bump Version
+        id: version
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/version-bump@main
+        with:
+          bump-type: 'auto'
+          tag-prefix: 'v'
+          push-tag: 'true'
+      
+      - name: Update manifest.json Version
+        run: |
+          VERSION="${{ steps.version.outputs.new-version }}"
+          if command -v jq >/dev/null 2>&1; then
+            jq --arg version "$VERSION" '.version = $version' "${{ inputs.extension-dir }}/manifest.json" > temp.json
+            mv temp.json "${{ inputs.extension-dir }}/manifest.json"
+          else
+            python3 -c "import json; d=json.load(open('${{ inputs.extension-dir }}/manifest.json')); d['version']='$VERSION'; json.dump(d, open('${{ inputs.extension-dir }}/manifest.json', 'w'), indent=2)"
+          fi
+        shell: bash
+      
+      - name: Package Extension
+        id: package
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@main
+        with:
+          extension-dir: ${{ inputs.extension-dir }}
+          output-name: 'extension'
+          include-source-maps: 'false'
+      
+      - name: Create GitHub Release
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/create-release@main
+        with:
+          tag-name: ${{ steps.version.outputs.new-tag }}
+          release-name: 'Release ${{ steps.version.outputs.new-tag }}'
+          body-file: 'CHANGELOG.md'
+          files: ${{ steps.package.outputs.package-path }}
+      
+      - name: Publish to Chrome Web Store
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/publish-cws@main
+        with:
+          extension-id: ${{ secrets.chrome-extension-id }}
+          client-id: ${{ secrets.chrome-client-id }}
+          client-secret: ${{ secrets.chrome-client-secret }}
+          refresh-token: ${{ secrets.chrome-refresh-token }}
+          zip-path: ${{ steps.package.outputs.package-path }}
+          publish-target: ${{ inputs.publish-target }}
+          auto-publish: ${{ inputs.auto-publish }}

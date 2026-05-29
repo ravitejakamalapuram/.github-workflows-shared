@@ -1,0 +1,71 @@
+name: Reusable Android CI
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: 'Java JDK version'
+        required: false
+        type: string
+        default: '17'
+      gradle-cache:
+        description: 'Enable gradle caching'
+        required: false
+        type: string
+        default: 'true'
+      run-tests:
+        description: 'Run unit tests'
+        required: false
+        type: boolean
+        default: true
+      test-task:
+        description: 'Gradle task to run tests'
+        required: false
+        type: string
+        default: 'test'
+      validate-extension:
+        description: 'Validate Chrome extension if present'
+        required: false
+        type: boolean
+        default: false
+      extension-dir:
+        description: 'Chrome extension directory'
+        required: false
+        type: string
+        default: 'chrome-extension'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Android Environment
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/setup@main
+        with:
+          java-version: ${{ inputs.java-version }}
+          gradle-cache: ${{ inputs.gradle-cache }}
+      
+      - name: Run Unit Tests
+        if: inputs.run-tests
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/test@main
+        with:
+          test-task: ${{ inputs.test-task }}
+          upload-reports: 'true'
+      
+      - name: Validate Chrome Extension
+        if: inputs.validate-extension && hashFiles(format('{0}/manifest.json', inputs.extension-dir)) != ''
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@main
+        with:
+          extension-dir: ${{ inputs.extension-dir }}
+          manifest-version: '3'
+          strict-mode: 'false'

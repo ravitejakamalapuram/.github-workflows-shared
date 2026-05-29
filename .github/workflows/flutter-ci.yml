@@ -1,0 +1,163 @@
+name: Reusable Flutter CI
+
+on:
+  workflow_call:
+    inputs:
+      flutter-channel:
+        description: 'Flutter SDK channel'
+        required: false
+        type: string
+        default: 'stable'
+      cache-pub:
+        description: 'Enable pub caching'
+        required: false
+        type: string
+        default: 'true'
+      auto-fix-corruption:
+        description: 'Automatically recover corrupted pub cache'
+        required: false
+        type: string
+        default: 'true'
+      fatal-warnings:
+        description: 'Treat analyzer warnings as errors'
+        required: false
+        type: string
+        default: 'true'
+      fatal-infos:
+        description: 'Treat analyzer infos as errors'
+        required: false
+        type: string
+        default: 'false'
+      run-tests:
+        description: 'Run unit tests'
+        required: false
+        type: boolean
+        default: true
+      run-analyzer:
+        description: 'Run flutter analyzer'
+        required: false
+        type: boolean
+        default: true
+      architecture-checks:
+        description: 'Verify clean architecture boundaries'
+        required: false
+        type: string
+        default: 'true'
+      check-api-in-widgets:
+        description: 'Verify API usages are not inside widgets'
+        required: false
+        type: string
+        default: 'false'
+      check-navigation-in-domain:
+        description: 'Verify navigation is not inside domain layers'
+        required: false
+        type: string
+        default: 'false'
+      security-checks:
+        description: 'Verify security best practices'
+        required: false
+        type: string
+        default: 'false'
+      run-l10n:
+        description: 'Run localizations generation'
+        required: false
+        type: boolean
+        default: false
+      dry-run-build:
+        description: 'Dry run appbundle compile'
+        required: false
+        type: boolean
+        default: false
+      exclude-tags:
+        description: 'Tags to exclude from tests'
+        required: false
+        type: string
+        default: ''
+      coverage:
+        description: 'Enable code coverage'
+        required: false
+        type: string
+        default: 'true'
+      slack-notify-failure:
+        description: 'Send Slack notifications on failure'
+        required: false
+        type: boolean
+        default: false
+      slack-app-name:
+        description: 'App name in Slack notifications'
+        required: false
+        type: string
+        default: 'Flutter App'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'self-hosted'
+    secrets:
+      slack-webhook-url:
+        description: 'Slack webhook URL'
+        required: false
+
+jobs:
+  ci:
+    name: Code Quality and Tests
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          clean: true
+      
+      - name: Setup Flutter Environment
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/setup@main
+        with:
+          flutter-channel: ${{ inputs.flutter-channel }}
+          cache-pub: ${{ inputs.cache-pub }}
+          fix-corrupted-cache: ${{ inputs.auto-fix-corruption }}
+      
+      - name: Generate Localizations
+        if: inputs.run-l10n
+        run: flutter gen-l10n
+        shell: bash
+      
+      - name: Run Flutter Analyzer
+        if: inputs.run-analyzer
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/analyze@main
+        with:
+          fatal-warnings: ${{ inputs.fatal-warnings }}
+          fatal-infos: ${{ inputs.fatal-infos }}
+          architecture-checks: ${{ inputs.architecture-checks }}
+          check-api-in-widgets: ${{ inputs.check-api-in-widgets }}
+          check-navigation-in-domain: ${{ inputs.check-navigation-in-domain }}
+          security-checks: ${{ inputs.security-checks }}
+      
+      - name: Run Flutter Tests
+        if: inputs.run-tests
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/test@main
+        with:
+          coverage: ${{ inputs.coverage }}
+          exclude-tags: ${{ inputs.exclude-tags }}
+          upload-coverage: 'false'
+      
+      - name: Build App Bundle (Dry Run)
+        if: inputs.dry-run-build
+        run: |
+          echo "🔍 Building App Bundle (Dry Run)..."
+          flutter build appbundle --debug
+        shell: bash
+      
+      - name: Summary
+        if: success()
+        run: echo "✅ All checks passed - ready for deployment"
+        shell: bash
+      
+      - name: Notify Slack of Failure
+        if: failure() && inputs.slack-notify-failure
+        continue-on-error: true
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/slack-notify@main
+        with:
+          slack-webhook-url: ${{ secrets.slack-webhook-url }}
+          status: 'failure'
+          app-name: ${{ inputs.slack-app-name }}

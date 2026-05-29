@@ -1,0 +1,145 @@
+name: Reusable Android CD
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: 'Java JDK version'
+        required: false
+        type: string
+        default: '17'
+      build-type:
+        description: 'Build type (release, debug)'
+        required: false
+        type: string
+        default: 'release'
+      package-name:
+        description: 'Android app package name'
+        required: false
+        type: string
+        default: ''
+      play-track:
+        description: 'Google Play track (alpha, beta, production)'
+        required: false
+        type: string
+        default: 'alpha'
+      deploy-to-play:
+        description: 'Deploy to Google Play Store'
+        required: false
+        type: boolean
+        default: false
+      include-extension:
+        description: 'Package and include chrome extension'
+        required: false
+        type: boolean
+        default: false
+      extension-dir:
+        description: 'Chrome extension directory'
+        required: false
+        type: string
+        default: 'chrome-extension'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+    secrets:
+      release-keystore-base64:
+        description: 'Keystore base64 encoded'
+        required: true
+      keystore-password:
+        description: 'Keystore password'
+        required: true
+      key-alias:
+        description: 'Key alias'
+        required: true
+      key-password:
+        description: 'Key password'
+        required: true
+      play-service-account-key:
+        description: 'Google Play Service Account JSON key'
+        required: false
+
+jobs:
+  cd:
+    name: Release & Deploy
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 45
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Android Environment
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/setup@main
+        with:
+          java-version: ${{ inputs.java-version }}
+      
+      - name: Generate Changelog
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/changelog@main
+        with:
+          output-file: 'CHANGELOG.md'
+          format: 'markdown'
+      
+      - name: Bump Version
+        id: version
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/version-bump@main
+        with:
+          bump-type: 'auto'
+          tag-prefix: 'v'
+          push-tag: 'true'
+      
+      - name: Build Release APK
+        id: build-apk
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/build-apk@main
+        with:
+          build-type: ${{ inputs.build-type }}
+          version-code: ${{ steps.version.outputs.new-version }}
+          keystore-base64: ${{ secrets.release-keystore-base64 }}
+          keystore-password: ${{ secrets.keystore-password }}
+          key-alias: ${{ secrets.key-alias }}
+          key-password: ${{ secrets.key-password }}
+      
+      - name: Build Release Bundle (AAB)
+        id: build-aab
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/build-bundle@main
+        with:
+          version-code: ${{ steps.version.outputs.new-version }}
+          keystore-base64: ${{ secrets.release-keystore-base64 }}
+          keystore-password: ${{ secrets.keystore-password }}
+          key-alias: ${{ secrets.key-alias }}
+          key-password: ${{ secrets.key-password }}
+      
+      - name: Package Chrome Extension
+        id: package-extension
+        if: inputs.include-extension && hashFiles(format('{0}/manifest.json', inputs.extension-dir)) != ''
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@main
+        with:
+          extension-dir: ${{ inputs.extension-dir }}
+          output-name: 'extension'
+      
+      - name: Create GitHub Release
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/create-release@main
+        with:
+          tag-name: ${{ steps.version.outputs.new-tag }}
+          release-name: 'Release ${{ steps.version.outputs.new-tag }}'
+          body-file: 'CHANGELOG.md'
+          files: |
+            ${{ steps.build-apk.outputs.apk-path }}
+            ${{ steps.build-aab.outputs.aab-path }}
+            ${{ steps.package-extension.outputs.package-path }}
+      
+      - name: Deploy to Google Play
+        if: inputs.deploy-to-play && inputs.package-name != ''
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/deploy-play@main
+        with:
+          service-account-json: ${{ secrets.play-service-account-key }}
+          package-name: ${{ inputs.package-name }}
+          aab-path: ${{ steps.build-aab.outputs.aab-path }}
+          track: ${{ inputs.play-track }}
+          release-status: 'completed'

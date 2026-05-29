@@ -1,0 +1,150 @@
+name: Reusable Chrome Extension CI
+
+on:
+  workflow_call:
+    inputs:
+      extension-dir:
+        description: 'Directory containing extension files'
+        required: false
+        type: string
+        default: 'extension'
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '20'
+      manifest-version:
+        description: 'Expected manifest version (2 or 3)'
+        required: false
+        type: string
+        default: '3'
+      strict-mode:
+        description: 'Enable strict validation'
+        required: false
+        type: string
+        default: 'false'
+      run-lint:
+        description: 'Run ESLint checks'
+        required: false
+        type: boolean
+        default: true
+      run-unit-tests:
+        description: 'Run unit tests'
+        required: false
+        type: boolean
+        default: true
+      run-e2e-tests:
+        description: 'Run E2E tests'
+        required: false
+        type: boolean
+        default: false
+      e2e-test-script:
+        description: 'Python test script to run'
+        required: false
+        type: string
+        default: 'tests/smoke_*.py'
+      e2e-headless:
+        description: 'Run tests in headless mode'
+        required: false
+        type: string
+        default: 'true'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+
+jobs:
+  ci:
+    name: Validate & Test
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+      
+      - name: Install Dependencies
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          elif [ -f "package.json" ]; then
+            npm install
+          fi
+        shell: bash
+      
+      - name: Validate Extension
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@main
+        with:
+          extension-dir: ${{ inputs.extension-dir }}
+          manifest-version: ${{ inputs.manifest-version }}
+          strict-mode: ${{ inputs.strict-mode }}
+      
+      - name: Lint Code
+        if: inputs.run-lint
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/lint@main
+        with:
+          extension-dir: ${{ inputs.extension-dir }}
+      
+      - name: Run Unit Tests
+        if: inputs.run-unit-tests
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-unit@main
+        with:
+          coverage: 'false'
+
+      - name: Package Extension
+        id: package
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@main
+        with:
+          extension-dir: ${{ inputs.extension-dir }}
+          output-name: 'extension'
+
+      - name: Upload Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension-zip
+          path: ${{ steps.package.outputs.package-path }}
+          retention-days: 1
+
+  e2e:
+    name: End-to-End Tests
+    runs-on: ${{ inputs.runner-type }}
+    needs: ci
+    if: inputs.run-e2e-tests
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+      
+      - name: Install Dependencies
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          elif [ -f "package.json" ]; then
+            npm install
+          fi
+        shell: bash
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run E2E Tests
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-e2e@main
+        with:
+          test-script: ${{ inputs.e2e-test-script }}
+          headless: ${{ inputs.e2e-headless }}
