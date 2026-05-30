@@ -128,8 +128,21 @@ runs:
     
     - name: Create Git Tag
       run: |
-        git tag ${{ steps.bump.outputs.tag }}
-        echo "✅ Created tag: ${{ steps.bump.outputs.tag }}"
+        TAG_NAME="${{ steps.bump.outputs.tag }}"
+        if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+          echo "⚠️ Tag $TAG_NAME already exists"
+          TAG_COMMIT=$(git rev-list -n 1 "$TAG_NAME" 2>/dev/null)
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          if [ "$TAG_COMMIT" == "$CURRENT_COMMIT" ]; then
+            echo "✅ Tag $TAG_NAME already points to current commit. Skipping creation."
+          else
+            echo "::error::Tag $TAG_NAME already exists on a different commit ($TAG_COMMIT)!"
+            exit 1
+          fi
+        else
+          git tag "$TAG_NAME"
+          echo "✅ Created tag: $TAG_NAME"
+        fi
       shell: bash
     
     - name: Push Tag
