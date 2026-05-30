@@ -46,7 +46,12 @@ runs:
         
         if [ "$BUMP_TYPE" == "auto" ]; then
           # Auto-detect from commit messages
-          COMMITS=$(git log $(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~10")..HEAD --pretty=%s)
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LATEST_TAG" ]; then
+            COMMITS=$(git log "$LATEST_TAG..HEAD" --pretty=%s)
+          else
+            COMMITS=$(git log --pretty=%s)
+          fi
           
           if echo "$COMMITS" | grep -q "^BREAKING CHANGE:\|^feat!:\|^fix!:"; then
             BUMP_TYPE="major"
