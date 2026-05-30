@@ -130,7 +130,9 @@ runs:
           echo "- **Mode**: ${{ inputs.build-mode }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Path**: \`$ARTIFACT\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Size**: $ARTIFACT_SIZE" >> $GITHUB_STEP_SUMMARY
-          [ "${{ inputs.obfuscate }}" == "true" ] && echo "- **Obfuscated**: Yes" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.obfuscate }}" == "true" ]; then
+            echo "- **Obfuscated**: Yes" >> $GITHUB_STEP_SUMMARY
+          fi
         else
           echo "❌ Artifact not found after build"
           exit 1

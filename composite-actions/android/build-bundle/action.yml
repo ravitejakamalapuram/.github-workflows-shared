@@ -81,7 +81,9 @@ runs:
           echo "## 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
           echo "- **AAB Path**: \`$AAB_PATH\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Size**: $AAB_SIZE" >> $GITHUB_STEP_SUMMARY
-          [ -n "${{ inputs.version-name }}" ] && echo "- **Version**: ${{ inputs.version-name }} (${{ inputs.version-code }})" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.version-name }}" ]; then
+            echo "- **Version**: ${{ inputs.version-name }} (${{ inputs.version-code }})" >> $GITHUB_STEP_SUMMARY
+          fi
         else
           echo "❌ AAB not found after build"
           exit 1

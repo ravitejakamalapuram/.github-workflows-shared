@@ -76,7 +76,9 @@ runs:
         echo "- **Package**: \`${{ inputs.package-name }}\`" >> $GITHUB_STEP_SUMMARY
         echo "- **Track**: ${{ inputs.track }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Status**: ${{ inputs.release-status }}" >> $GITHUB_STEP_SUMMARY
-        [ "${{ inputs.track }}" == "production" ] && echo "- **Rollout**: $(echo "${{ inputs.user-fraction }} * 100" | bc)%" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ inputs.track }}" == "production" ]; then
+          echo "- **Rollout**: $(echo "${{ inputs.user-fraction }} * 100" | bc)%" >> $GITHUB_STEP_SUMMARY
+        fi
       shell: bash
 
 branding:
