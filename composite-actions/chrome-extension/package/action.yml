@@ -67,9 +67,10 @@ runs:
         echo "::group::Packaging Extension"
         echo "Creating ZIP: $OUTPUT_FILE"
         
+        ROOT_DIR=$(pwd)
         cd "${{ inputs.extension-dir }}"
-        eval "zip -r ../$OUTPUT_FILE . $EXCLUDE_ARGS" > /dev/null
-        cd ..
+        eval "zip -r $ROOT_DIR/$OUTPUT_FILE . $EXCLUDE_ARGS" > /dev/null
+        cd "$ROOT_DIR"
         
         echo "::endgroup::"
         
