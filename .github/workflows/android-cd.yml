@@ -94,12 +94,20 @@ jobs:
           tag-prefix: 'v'
           push-tag: 'true'
       
+      - name: Calculate Android Version Code
+        id: android-version
+        run: |
+          CODE=$(git rev-list --count HEAD)
+          echo "code=$CODE" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Build Release APK
         id: build-apk
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/build-apk@main
         with:
           build-type: ${{ inputs.build-type }}
-          version-code: ${{ steps.version.outputs.new-version }}
+          version-code: ${{ steps.android-version.outputs.code }}
+          version-name: ${{ steps.version.outputs.new-version }}
           keystore-base64: ${{ secrets.release-keystore-base64 }}
           keystore-password: ${{ secrets.keystore-password }}
           key-alias: ${{ secrets.key-alias }}
@@ -109,7 +117,8 @@ jobs:
         id: build-aab
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/build-bundle@main
         with:
-          version-code: ${{ steps.version.outputs.new-version }}
+          version-code: ${{ steps.android-version.outputs.code }}
+          version-name: ${{ steps.version.outputs.new-version }}
           keystore-base64: ${{ secrets.release-keystore-base64 }}
           keystore-password: ${{ secrets.keystore-password }}
           key-alias: ${{ secrets.key-alias }}
