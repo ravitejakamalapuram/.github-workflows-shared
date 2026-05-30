@@ -59,7 +59,7 @@ runs:
         releaseFiles: ${{ inputs.aab-path }}
         track: ${{ inputs.track }}
         status: ${{ inputs.release-status }}
-        userFraction: ${{ inputs.user-fraction }}
+        userFraction: ${{ inputs.release-status == 'inProgress' && inputs.user-fraction || '' }}
         whatsNewDirectory: ${{ inputs.whats-new-dir }}
     
     - name: Upload Summary
