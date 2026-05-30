@@ -58,8 +58,10 @@ runs:
     - name: Get Flutter & Dart versions
       id: flutter-version
       run: |
-        FLUTTER_VER=$(flutter --version | head -1 | awk '{print $2}')
-        DART_VER=$(flutter --version | grep -o 'Dart [0-9.]*' | awk '{print $2}')
+        # Cache flutter --version output since flutter CLI is slow to initialize
+        FLUTTER_INFO=$(flutter --version)
+        FLUTTER_VER=$(echo "$FLUTTER_INFO" | head -1 | awk '{print $2}')
+        DART_VER=$(echo "$FLUTTER_INFO" | grep -o 'Dart [0-9.]*' | awk '{print $2}')
         echo "version=$FLUTTER_VER" >> $GITHUB_OUTPUT
         echo "dart_version=$DART_VER" >> $GITHUB_OUTPUT
         echo "✅ Flutter: $FLUTTER_VER | Dart: $DART_VER"
