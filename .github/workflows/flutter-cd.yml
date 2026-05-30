@@ -168,7 +168,7 @@ jobs:
         id: app_size
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/size-check@main
         with:
-          file-path: ${{ steps.build.outputs.build-path }}
+          file-path: ${{ steps.build.outputs.artifact-path }}
           max-size-mb: '20'
 
       - name: Deploy to Google Play (Alpha)
@@ -177,7 +177,7 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.play-store-credentials }}
           packageName: ${{ inputs.package-name }}
-          releaseFiles: ${{ steps.build.outputs.build-path }}
+          releaseFiles: ${{ steps.build.outputs.artifact-path }}
           track: alpha
           status: completed
           inAppUpdatePriority: 2
@@ -274,7 +274,7 @@ jobs:
         id: app_size
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/size-check@main
         with:
-          file-path: ${{ steps.build.outputs.build-path }}
+          file-path: ${{ steps.build.outputs.artifact-path }}
           max-size-mb: '20'
 
       - name: Deploy to Google Play (Alpha)
@@ -282,7 +282,7 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.play-store-credentials }}
           packageName: ${{ inputs.package-name }}
-          releaseFiles: ${{ steps.build.outputs.build-path }}
+          releaseFiles: ${{ steps.build.outputs.artifact-path }}
           track: alpha
           status: completed
           inAppUpdatePriority: 2
