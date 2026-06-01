@@ -198,66 +198,6 @@ def parse_extension_id(input_str):
         
     return None
 
-def detect_secret_names(repo_path):
-    # Default names
-    names = {
-        "CLIENT_ID": "CHROME_CLIENT_ID",
-        "CLIENT_SECRET": "CHROME_CLIENT_SECRET",
-        "EXTENSION_ID": "CHROME_EXTENSION_ID",
-        "REFRESH_TOKEN": "CHROME_REFRESH_TOKEN"
-    }
-    
-    workflows_dir = os.path.join(repo_path, ".github", "workflows")
-    if not os.path.exists(workflows_dir):
-        return names
-        
-    # Regex to find secrets.<NAME>
-    secret_regex = re.compile(r'secrets\.([a-zA-Z0-9_\-]+)')
-    found_secrets = set()
-    
-    for root, _, files in os.walk(workflows_dir):
-        for file in files:
-            if file.endswith((".yml", ".yaml")):
-                try:
-                    with open(os.path.join(root, file), "r", errors="ignore") as f:
-                        content = f.read()
-                        matches = secret_regex.findall(content)
-                        for m in matches:
-                            found_secrets.add(m.strip().upper())
-                except Exception:
-                    pass
-                    
-    # Map found secrets to our categories based on standard keywords
-    # Client ID candidates
-    client_id_candidates = ["CHROME_CLIENT_ID", "CWS_CLIENT_ID", "CLIENT_ID", "GOOGLE_CLIENT_ID"]
-    for c in client_id_candidates:
-        if c in found_secrets:
-            names["CLIENT_ID"] = c
-            break
-            
-    # Client Secret candidates
-    client_secret_candidates = ["CHROME_CLIENT_SECRET", "CWS_CLIENT_SECRET", "CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"]
-    for c in client_secret_candidates:
-        if c in found_secrets:
-            names["CLIENT_SECRET"] = c
-            break
-            
-    # Extension ID candidates
-    ext_id_candidates = ["CHROME_EXTENSION_ID", "CWS_EXTENSION_ID", "APP_ID", "EXTENSION_ID"]
-    for c in ext_id_candidates:
-        if c in found_secrets:
-            names["EXTENSION_ID"] = c
-            break
-            
-    # Refresh Token candidates
-    refresh_token_candidates = ["CHROME_REFRESH_TOKEN", "CWS_REFRESH_TOKEN", "REFRESH_TOKEN", "GOOGLE_REFRESH_TOKEN"]
-    for c in refresh_token_candidates:
-        if c in found_secrets:
-            names["REFRESH_TOKEN"] = c
-            break
-            
-    return names
-
 def main():
     print("====================================================")
     print("   Chrome Web Store API Secrets Configuration Helper")
@@ -335,12 +275,11 @@ def main():
         sys.exit(1)
         
     # Step 3: Set secrets in GitHub via CLI
-    secret_names = detect_secret_names(repo_path)
-    print(f"\n⚙️ Setting up GitHub Actions Repository Secrets (using detected mapping)...")
-    set_gh_secret(repo_path, secret_names["CLIENT_ID"], client_id)
-    set_gh_secret(repo_path, secret_names["CLIENT_SECRET"], client_secret)
-    set_gh_secret(repo_path, secret_names["EXTENSION_ID"], extension_id)
-    set_gh_secret(repo_path, secret_names["REFRESH_TOKEN"], refresh_token)
+    print("\n⚙️ Setting up GitHub Actions Repository Secrets...")
+    set_gh_secret(repo_path, "CHROME_CLIENT_ID", client_id)
+    set_gh_secret(repo_path, "CHROME_CLIENT_SECRET", client_secret)
+    set_gh_secret(repo_path, "CHROME_EXTENSION_ID", extension_id)
+    set_gh_secret(repo_path, "CHROME_REFRESH_TOKEN", refresh_token)
     
     print("\n🎉 SUCCESS! GitHub secrets configured successfully.")
     print("You can now push your changes to trigger automatic deployments on release/merge.")

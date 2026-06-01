@@ -345,13 +345,9 @@ Privacy Policy available in `PRIVACY.md` in the project root. Recommended to hos
 | {ext_version} | {today_str} | Initial onboarding draft. | Draft |
 """
 
-cws_path = os.path.join(target_dir, "CHROMEWEBSTORE.md")
-if not os.path.exists(cws_path):
-    with open(cws_path, "w") as f:
-        f.write(cws_md_content.strip() + "\n")
-    print("  ✅ Generated CHROMEWEBSTORE.md (metadata source of truth)")
-else:
-    print("  ℹ️ Existing CHROMEWEBSTORE.md found.")
+with open(os.path.join(target_dir, "CHROMEWEBSTORE.md"), "w") as f:
+    f.write(cws_md_content.strip() + "\n")
+print("  ✅ Generated CHROMEWEBSTORE.md (metadata source of truth)")
 
 # Create PRIVACY.md
 privacy_content = f"""# Privacy Policy for {ext_name}
@@ -378,21 +374,16 @@ This extension does not use any third-party services, APIs, analytics platforms,
 If you have any questions or feedback regarding this policy, please open a GitHub Issue in the project repository.
 """
 
-privacy_path = os.path.join(target_dir, "PRIVACY.md")
-if not os.path.exists(privacy_path):
-    with open(privacy_path, "w") as f:
-        f.write(privacy_content.strip() + "\n")
-    print("  ✅ Generated PRIVACY.md (standard privacy policy)")
-else:
-    print("  ℹ️ Existing PRIVACY.md found.")
+with open(os.path.join(target_dir, "PRIVACY.md"), "w") as f:
+    f.write(privacy_content.strip() + "\n")
+print("  ✅ Generated PRIVACY.md (standard privacy policy)")
 EOF
 
 # --- 3. Generate Local GitHub Workflow File ---
 echo -e "\n${YELLOW}⚙️ Step 3: Setting up GitHub Actions CI/CD workflows...${NC}"
 
 WORKFLOW_FILE="$TARGET_DIR/.github/workflows/ci-cd.yml"
-if [ ! -f "$WORKFLOW_FILE" ]; then
-  cat << 'EOF' > "$WORKFLOW_FILE"
+cat << 'EOF' > "$WORKFLOW_FILE"
 name: CI/CD Pipeline
 
 on:
@@ -432,11 +423,8 @@ jobs:
       chrome-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
       chrome-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 EOF
-  python3 -c "import sys, os; content=open('$WORKFLOW_FILE').read().replace('EXT_DIR_PLACEHOLDER', os.getenv('EXT_DIR', 'extension')); open('$WORKFLOW_FILE', 'w').write(content)"
-  echo -e "  ✅ Generated local workflow ${BOLD}.github/workflows/ci-cd.yml${NC} pointing to the central pipeline"
-else
-  echo -e "  ℹ️ Existing local workflow ${BOLD}.github/workflows/ci-cd.yml${NC} found."
-fi
+python3 -c "import sys, os; content=open('$WORKFLOW_FILE').read().replace('EXT_DIR_PLACEHOLDER', os.getenv('EXT_DIR', 'extension')); open('$WORKFLOW_FILE', 'w').write(content)"
+echo -e "  ✅ Generated local workflow ${BOLD}.github/workflows/ci-cd.yml${NC} pointing to the central pipeline"
 
 # --- 4. Package initial draft ZIP ---
 echo -e "\n${YELLOW}📦 Step 4: Packaging extension for the initial manual upload...${NC}"
