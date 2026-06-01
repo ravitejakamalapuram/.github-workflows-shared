@@ -36,16 +36,32 @@ echo -e "${BLUE}${BOLD}    Chrome Extension Onboarding & CI/CD Wizard      ${NC}
 echo -e "${BLUE}${BOLD}====================================================${NC}"
 echo -e "Target directory: ${BOLD}$TARGET_DIR${NC}"
 
+# Detect extension directory structure
+if [ -f "$TARGET_DIR/manifest.json" ]; then
+  EXT_DIR="."
+  echo -e "  🔍 Detected manifest.json at root level. Using root as extension directory."
+elif [ -f "$TARGET_DIR/extension/manifest.json" ]; then
+  EXT_DIR="extension"
+  echo -e "  🔍 Detected manifest.json inside 'extension' subdirectory."
+elif [ -f "$TARGET_DIR/chrome-extension/manifest.json" ]; then
+  EXT_DIR="chrome-extension"
+  echo -e "  🔍 Detected manifest.json inside 'chrome-extension' subdirectory."
+else
+  EXT_DIR="extension"
+  echo -e "  🔍 No existing manifest.json found. Defaulting to 'extension' subdirectory."
+fi
+export EXT_DIR
+
 # Create directories if they don't exist
-mkdir -p "$TARGET_DIR/extension/icons"
-mkdir -p "$TARGET_DIR/extension/popup"
 mkdir -p "$TARGET_DIR/.github/workflows"
+mkdir -p "$TARGET_DIR/$EXT_DIR/icons"
+mkdir -p "$TARGET_DIR/$EXT_DIR/popup"
 
 # --- 1. Generate Boilerplate Files (if missing) ---
 echo -e "\n${YELLOW}📦 Step 1: Checking and generating extension files...${NC}"
 
 # Generate manifest.json if missing
-MANIFEST_FILE="$TARGET_DIR/extension/manifest.json"
+MANIFEST_FILE="$TARGET_DIR/$EXT_DIR/manifest.json"
 if [ ! -f "$MANIFEST_FILE" ]; then
   cat << 'EOF' > "$MANIFEST_FILE"
 {
@@ -89,7 +105,8 @@ import os
 png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 png_data = base64.b64decode(png_b64)
 
-target_dir = os.path.join(os.getenv("TARGET_DIR", "."), "extension", "icons")
+ext_dir_name = os.getenv("EXT_DIR", "extension")
+target_dir = os.path.join(os.getenv("TARGET_DIR", "."), ext_dir_name if ext_dir_name != "." else "", "icons")
 os.makedirs(target_dir, exist_ok=True)
 
 for size in [16, 48, 128]:
@@ -99,7 +116,7 @@ for size in [16, 48, 128]:
             f.write(png_data)
 EOF
 # Generate service worker if missing
-SW_FILE="$TARGET_DIR/extension/service-worker.js"
+SW_FILE="$TARGET_DIR/$EXT_DIR/service-worker.js"
 if [ ! -f "$SW_FILE" ]; then
   cat << 'EOF' > "$SW_FILE"
 // service-worker.js
@@ -125,7 +142,7 @@ else
 fi
 
 # Generate popup UI if missing
-POPUP_HTML="$TARGET_DIR/extension/popup/popup.html"
+POPUP_HTML="$TARGET_DIR/$EXT_DIR/popup/popup.html"
 if [ ! -f "$POPUP_HTML" ]; then
   cat << 'EOF' > "$POPUP_HTML"
 <!DOCTYPE html>
@@ -175,7 +192,7 @@ EOF
 fi
 
 # Generate popup JS if missing
-POPUP_JS="$TARGET_DIR/extension/popup/popup.js"
+POPUP_JS="$TARGET_DIR/$EXT_DIR/popup/popup.js"
 if [ ! -f "$POPUP_JS" ]; then
   cat << 'EOF' > "$POPUP_JS"
 // popup.js - Interactive controls
@@ -206,7 +223,11 @@ import os
 import datetime
 
 target_dir = os.getenv("TARGET_DIR", ".")
-manifest_path = os.path.join(target_dir, "extension", "manifest.json")
+ext_dir = os.getenv("EXT_DIR", "extension")
+if ext_dir == ".":
+    manifest_path = os.path.join(target_dir, "manifest.json")
+else:
+    manifest_path = os.path.join(target_dir, "extension", "manifest.json")
 
 # Load manifest details
 try:
@@ -250,6 +271,10 @@ if not table_rows:
 permissions_table = "\n".join(table_rows)
 today_str = datetime.date.today().isoformat()
 
+## Graphics & Assets
+
+icon_path = os.path.join(ext_dir if ext_dir != '.' else '', 'icons/icon-128.png')
+
 # Create CHROMEWEBSTORE.md
 cws_md_content = f"""# Chrome Web Store Listing — {ext_name}
 
@@ -285,7 +310,7 @@ English
 
 | Asset | Dimensions | Status | Filename |
 |---|---|---|---|
-| Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | extension/icons/icon-128.png |
+| Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | {icon_path} |
 | Screenshot 1 [REQUIRED] | 1280×800 or 640×400 | ⬜ Not created | |
 | Screenshot 2 [RECOMMENDED] | 1280×800 or 640×400 | ⬜ Not created | |
 | Small Promo Tile [RECOMMENDED] | 440×280 | ⬜ Not created | |
@@ -377,7 +402,7 @@ jobs:
     name: CI Pipeline
     uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/chrome-extension-ci.yml@main
     with:
-      extension-dir: 'extension'
+      extension-dir: 'EXT_DIR_PLACEHOLDER'
       manifest-version: '3'
       strict-mode: 'false'
       run-lint: false # Enable after configuring ESLint
@@ -389,7 +414,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/chrome-extension-cd.yml@main
     with:
-      extension-dir: 'extension'
+      extension-dir: 'EXT_DIR_PLACEHOLDER'
       publish-target: 'default'
       auto-publish: 'true'
     secrets:
@@ -398,13 +423,14 @@ jobs:
       chrome-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
       chrome-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 EOF
+python3 -c "import sys, os; content=open('$WORKFLOW_FILE').read().replace('EXT_DIR_PLACEHOLDER', os.getenv('EXT_DIR', 'extension')); open('$WORKFLOW_FILE', 'w').write(content)"
 echo -e "  ✅ Generated local workflow ${BOLD}.github/workflows/ci-cd.yml${NC} pointing to the central pipeline"
 
 # --- 4. Package initial draft ZIP ---
 echo -e "\n${YELLOW}📦 Step 4: Packaging extension for the initial manual upload...${NC}"
 ZIP_PATH="$TARGET_DIR/initial-package.zip"
 rm -f "$ZIP_PATH"
-(cd "$TARGET_DIR/extension" && zip -r "../initial-package.zip" . > /dev/null)
+(cd "$TARGET_DIR/$EXT_DIR" && zip -r "../initial-package.zip" . > /dev/null)
 echo -e "  ✅ Package created successfully: ${BOLD}initial-package.zip${NC}"
 
 # --- 5. Output Interactive Step-by-Step Onboarding Checklist ---
@@ -433,8 +459,13 @@ echo -e "  3. Upload the generated ${BOLD}initial-package.zip${NC} file."
 echo -e "  4. Fill out Listing, Privacy, and Categories. Use descriptions and justifications from ${BOLD}CHROMEWEBSTORE.md${NC}."
 echo -e "  5. Copy your new **Extension ID** from the Dashboard url or console."
 
-echo -e "\n${BOLD}Step 3: Save Secrets to your GitHub Repository${NC}"
-echo -e "  Add these secrets under ${BOLD}Settings -> Secrets and variables -> Actions -> New repository secret${NC}:"
+echo -e "\n${BOLD}Step 3: Save Secrets to your GitHub Repository (Automated!)${NC}"
+echo -e "  You can automatically retrieve tokens and set up your repository secrets using our Python script."
+echo -e "  Make sure you have the ${BOLD}GitHub CLI (gh)${NC} installed and authenticated (${BLUE}gh auth login${NC})."
+echo -e "  Then, run:"
+echo -e "    ${BLUE}python3 \"\$(dirname \"\$0\")/setup-secrets.py\" \"\$TARGET_DIR\"${NC}"
+echo -e ""
+echo -e "  Alternatively, you can manually add these secrets under Settings -> Secrets and variables -> Actions -> New repository secret:"
 echo -e "    - ${YELLOW}CHROME_EXTENSION_ID${NC}   : Your Extension ID from Step 2.5."
 echo -e "    - ${YELLOW}CHROME_CLIENT_ID${NC}       : Your Google OAuth Client ID."
 echo -e "    - ${YELLOW}CHROME_CLIENT_SECRET${NC}   : Your Google OAuth Client Secret."
