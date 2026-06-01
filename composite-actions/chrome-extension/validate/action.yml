@@ -47,14 +47,14 @@ runs:
         echo "✅ manifest.json found"
         
         # Validate JSON structure
-        if ! python3 -m json.tool "$EXT_DIR/manifest.json" > /dev/null 2>&1; then
+        if ! jq empty "$EXT_DIR/manifest.json" > /dev/null 2>&1; then
           echo "::error::manifest.json is not valid JSON"
           exit 1
         fi
         echo "✅ manifest.json is valid JSON"
         
         # Check manifest version
-        ACTUAL_VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json'))['manifest_version'])")
+        ACTUAL_VERSION=$(jq -r '.manifest_version' "$EXT_DIR/manifest.json")
         echo "Detected manifest_version: $ACTUAL_VERSION"
         
         if [ "$ACTUAL_VERSION" != "${{ inputs.manifest-version }}" ]; then
@@ -84,9 +84,9 @@ runs:
       run: |
         EXT_DIR="${{ inputs.extension-dir }}"
         
-        VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json'))['manifest_version'])")
-        NAME=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json')).get('name', 'Unknown'))")
-        EXT_VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json')).get('version', 'Unknown'))")
+        VERSION=$(jq -r '.manifest_version' "$EXT_DIR/manifest.json")
+        NAME=$(jq -r '.name // "Unknown"' "$EXT_DIR/manifest.json")
+        EXT_VERSION=$(jq -r '.version // "Unknown"' "$EXT_DIR/manifest.json")
         
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "name=$NAME" >> $GITHUB_OUTPUT
