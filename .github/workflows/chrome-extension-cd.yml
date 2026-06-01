@@ -89,12 +89,8 @@ jobs:
       - name: Update manifest.json Version
         run: |
           VERSION="${{ steps.version.outputs.new-version }}"
-          if command -v jq >/dev/null 2>&1; then
-            jq --arg version "$VERSION" '.version = $version' "${{ inputs.extension-dir }}/manifest.json" > temp.json
-            mv temp.json "${{ inputs.extension-dir }}/manifest.json"
-          else
-            python3 -c "import json; d=json.load(open('${{ inputs.extension-dir }}/manifest.json')); d['version']='$VERSION'; json.dump(d, open('${{ inputs.extension-dir }}/manifest.json', 'w'), indent=2)"
-          fi
+          jq --arg version "$VERSION" '.version = $version' "${{ inputs.extension-dir }}/manifest.json" > temp.json
+          mv temp.json "${{ inputs.extension-dir }}/manifest.json"
         shell: bash
       
       - name: Package Extension

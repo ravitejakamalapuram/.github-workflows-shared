@@ -63,7 +63,7 @@ jobs:
         run: ./gradlew test
       - name: Validate Chrome Extension Manifest
         run: |
-          if ! python3 -c "import json; json.load(open('chrome-extension/manifest.json'))"; then
+          if ! jq empty 'chrome-extension/manifest.json' > /dev/null 2>&1; then
             echo "Error: manifest.json is invalid"
             exit 1
           fi
