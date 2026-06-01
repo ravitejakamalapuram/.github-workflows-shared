@@ -43,15 +43,18 @@ runs:
     
     - name: Run E2E Tests
       id: test
+      env:
+        HEADLESS_INPUT: ${{ inputs.headless }}
+        TEST_SCRIPT_INPUT: ${{ inputs.test-script }}
       run: |
         echo "::group::Running E2E Tests"
         
-        export HEADLESS="${{ inputs.headless }}"
+        export HEADLESS="$HEADLESS_INPUT"
         
         # Run test script(s)
-        if [[ "${{ inputs.test-script }}" == *"*"* ]]; then
+        if [[ "$TEST_SCRIPT_INPUT" == *"*"* ]]; then
           # Wildcard pattern - run all matching files
-          for test_file in ${{ inputs.test-script }}; do
+          for test_file in $TEST_SCRIPT_INPUT; do
             if [ -f "$test_file" ]; then
               echo "Running: $test_file"
               python3 "$test_file"
@@ -59,10 +62,10 @@ runs:
           done
         else
           # Single file
-          if [ -f "${{ inputs.test-script }}" ]; then
-            python3 ${{ inputs.test-script }}
+          if [ -f "$TEST_SCRIPT_INPUT" ]; then
+            python3 "$TEST_SCRIPT_INPUT"
           else
-            echo "::warning::Test script not found: ${{ inputs.test-script }}"
+            echo "::warning::Test script not found: $TEST_SCRIPT_INPUT"
             exit 0
           fi
         fi
