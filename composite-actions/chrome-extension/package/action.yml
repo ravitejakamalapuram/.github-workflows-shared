@@ -84,8 +84,9 @@ runs:
           echo "- **Size**: $ZIP_SIZE" >> $GITHUB_STEP_SUMMARY
           
           # Get extension info from manifest
-          EXT_NAME=$(python3 -c "import json; print(json.load(open('${{ inputs.extension-dir }}/manifest.json')).get('name', 'Unknown'))")
-          EXT_VERSION=$(python3 -c "import json; print(json.load(open('${{ inputs.extension-dir }}/manifest.json')).get('version', 'Unknown'))")
+          # OPTIMIZATION: Use jq -r instead of python3 inline script for much faster JSON parsing
+          EXT_NAME=$(jq -r '.name // "Unknown"' "${{ inputs.extension-dir }}/manifest.json")
+          EXT_VERSION=$(jq -r '.version // "Unknown"' "${{ inputs.extension-dir }}/manifest.json")
           
           echo "- **Name**: $EXT_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: $EXT_VERSION" >> $GITHUB_STEP_SUMMARY

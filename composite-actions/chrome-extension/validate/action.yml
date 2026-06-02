@@ -47,14 +47,16 @@ runs:
         echo "✅ manifest.json found"
         
         # Validate JSON structure
-        if ! python3 -m json.tool "$EXT_DIR/manifest.json" > /dev/null 2>&1; then
+        # OPTIMIZATION: Use jq empty instead of python3 -m json.tool for much faster JSON validation
+        if ! jq empty "$EXT_DIR/manifest.json" > /dev/null 2>&1; then
           echo "::error::manifest.json is not valid JSON"
           exit 1
         fi
         echo "✅ manifest.json is valid JSON"
         
         # Check manifest version
-        ACTUAL_VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json'))['manifest_version'])")
+        # OPTIMIZATION: Use jq -r instead of python3 inline script for much faster JSON parsing
+        ACTUAL_VERSION=$(jq -r '.manifest_version // "Unknown"' "$EXT_DIR/manifest.json")
         echo "Detected manifest_version: $ACTUAL_VERSION"
         
         if [ "$ACTUAL_VERSION" != "${{ inputs.manifest-version }}" ]; then
@@ -84,9 +86,10 @@ runs:
       run: |
         EXT_DIR="${{ inputs.extension-dir }}"
         
-        VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json'))['manifest_version'])")
-        NAME=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json')).get('name', 'Unknown'))")
-        EXT_VERSION=$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json')).get('version', 'Unknown'))")
+        # OPTIMIZATION: Use jq -r instead of python3 inline script for much faster JSON parsing
+        VERSION=$(jq -r '.manifest_version // "Unknown"' "$EXT_DIR/manifest.json")
+        NAME=$(jq -r '.name // "Unknown"' "$EXT_DIR/manifest.json")
+        EXT_VERSION=$(jq -r '.version // "Unknown"' "$EXT_DIR/manifest.json")
         
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "name=$NAME" >> $GITHUB_OUTPUT
@@ -101,42 +104,33 @@ runs:
         EXT_DIR="${{ inputs.extension-dir }}"
         
         echo "::group::Validating Icon Files"
-        python3 << 'PYTHON_SCRIPT'
-        import json
-        import os
-        import sys
+        # OPTIMIZATION: Use jq to extract icon paths instead of a slow python3 script.
+        # This dramatically speeds up JSON parsing and extraction.
+        MISSING_ICONS=0
 
-        manifest_path = "${{ inputs.extension-dir }}/manifest.json"
-        with open(manifest_path) as f:
-            data = json.load(f)
+        # Check top-level icons (using process substitution to avoid subshell variable scope issues, and select(. != null) to handle missing optional fields cleanly)
+        while read -r size path; do
+          if [ ! -z "$path" ] && [ ! -e "$EXT_DIR/$path" ]; then
+             echo "::error::Missing icon file: icons.$size: $path"
+             MISSING_ICONS=1
+          fi
+        done < <(jq -r '.icons | select(. != null) | to_entries[] | "\(.key) \(.value)"' "$EXT_DIR/manifest.json")
 
-        missing_icons = []
+        # Check action/browser_action icons
+        ACTION_KEY=$(jq -r 'if .manifest_version == 3 then "action" else "browser_action" end' "$EXT_DIR/manifest.json")
+        while read -r size path; do
+          if [ ! -z "$path" ] && [ ! -e "$EXT_DIR/$path" ]; then
+             echo "::error::Missing icon file: $ACTION_KEY.default_icon.$size: $path"
+             MISSING_ICONS=1
+          fi
+        done < <(jq -r ".$ACTION_KEY.default_icon | select(. != null) | select(type == \"object\") | to_entries[] | \"\(.key) \(.value)\"" "$EXT_DIR/manifest.json")
 
-        # Check icons
-        if 'icons' in data:
-            for size, path in data['icons'].items():
-                full_path = os.path.join("${{ inputs.extension-dir }}", path)
-                if not os.path.exists(full_path):
-                    missing_icons.append(f"icons.{size}: {path}")
-
-        # Check action icons (MV3) or browser_action icons (MV2)
-        action_key = 'action' if data.get('manifest_version') == 3 else 'browser_action'
-        if action_key in data and 'default_icon' in data[action_key]:
-            icons = data[action_key]['default_icon']
-            if isinstance(icons, dict):
-                for size, path in icons.items():
-                    full_path = os.path.join("${{ inputs.extension-dir }}", path)
-                    if not os.path.exists(full_path):
-                        missing_icons.append(f"{action_key}.default_icon.{size}: {path}")
-
-        if missing_icons:
-            print("::error::Missing icon files:")
-            for icon in missing_icons:
-                print(f"::error::  - {icon}")
-            sys.exit(1)
-        else:
-            print("✅ All declared icon files exist")
-        PYTHON_SCRIPT
+        if [ "$MISSING_ICONS" -eq 1 ]; then
+          echo "::error::Missing icon files"
+          exit 1
+        else
+          echo "✅ All declared icon files exist"
+        fi
         echo "::endgroup::"
       shell: bash
     
