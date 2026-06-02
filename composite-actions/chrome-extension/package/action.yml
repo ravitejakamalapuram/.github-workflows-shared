@@ -32,14 +32,16 @@ runs:
   using: 'composite'
   steps:
     - name: Validate Extension Directory
+      env:
+        EXTENSION_DIR: ${{ inputs.extension-dir }}
       run: |
-        if [ ! -d "${{ inputs.extension-dir }}" ]; then
-          echo "::error::Extension directory not found: ${{ inputs.extension-dir }}"
+        if [ ! -d "$EXTENSION_DIR" ]; then
+          echo "::error::Extension directory not found: $EXTENSION_DIR"
           exit 1
         fi
         
-        if [ ! -f "${{ inputs.extension-dir }}/manifest.json" ]; then
-          echo "::error::manifest.json not found in ${{ inputs.extension-dir }}"
+        if [ ! -f "$EXTENSION_DIR/manifest.json" ]; then
+          echo "::error::manifest.json not found in $EXTENSION_DIR"
           exit 1
         fi
         
@@ -48,34 +50,40 @@ runs:
     
     - name: Package Extension
       id: package
+      env:
+        EXCLUDE_PATTERNS: ${{ inputs.exclude-patterns }}
+        INCLUDE_SOURCE_MAPS: ${{ inputs.include-source-maps }}
+        OUTPUT_NAME: ${{ inputs.output-name }}
+        EXTENSION_DIR: ${{ inputs.extension-dir }}
       run: |
         set -e
         
         # Build exclude arguments for zip
-        EXCLUDE_ARGS=""
-        for pattern in ${{ inputs.exclude-patterns }}; do
-          EXCLUDE_ARGS="$EXCLUDE_ARGS -x \"$pattern\""
+        EXCLUDE_ARGS=()
+        read -ra PATTERNS <<< "$EXCLUDE_PATTERNS"
+        for pattern in "${PATTERNS[@]}"; do
+          EXCLUDE_ARGS+=("-x" "$pattern")
         done
         
         # Exclude source maps if not included
-        if [ "${{ inputs.include-source-maps }}" != "true" ]; then
-          EXCLUDE_ARGS="$EXCLUDE_ARGS -x \"*.map\""
+        if [ "$INCLUDE_SOURCE_MAPS" != "true" ]; then
+          EXCLUDE_ARGS+=("-x" "*.map")
         fi
         
-        OUTPUT_FILE="${{ inputs.output-name }}.zip"
+        OUTPUT_FILE="${OUTPUT_NAME}.zip"
         
         echo "::group::Packaging Extension"
         echo "Creating ZIP: $OUTPUT_FILE"
         
         ROOT_DIR=$(pwd)
-        cd "${{ inputs.extension-dir }}"
-        eval "zip -r $ROOT_DIR/$OUTPUT_FILE . $EXCLUDE_ARGS" > /dev/null
+        cd "$EXTENSION_DIR"
+        zip -r "$ROOT_DIR/$OUTPUT_FILE" . "${EXCLUDE_ARGS[@]}" > /dev/null
         cd "$ROOT_DIR"
         
         echo "::endgroup::"
         
-        if [ -f "$OUTPUT_FILE" ]; then
-          ZIP_SIZE=$(du -h "$OUTPUT_FILE" | cut -f1)
+        if [ -f "$ROOT_DIR/$OUTPUT_FILE" ]; then
+          ZIP_SIZE=$(du -h "$ROOT_DIR/$OUTPUT_FILE" | cut -f1)
           echo "zip_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
           echo "✅ Extension packaged successfully: $OUTPUT_FILE ($ZIP_SIZE)"
           
@@ -84,8 +92,8 @@ runs:
           echo "- **Size**: $ZIP_SIZE" >> $GITHUB_STEP_SUMMARY
           
           # Get extension info from manifest
-          EXT_NAME=$(python3 -c "import json; print(json.load(open('${{ inputs.extension-dir }}/manifest.json')).get('name', 'Unknown'))")
-          EXT_VERSION=$(python3 -c "import json; print(json.load(open('${{ inputs.extension-dir }}/manifest.json')).get('version', 'Unknown'))")
+          EXT_NAME=$(jq -r '.name // "Unknown"' "$EXTENSION_DIR/manifest.json")
+          EXT_VERSION=$(jq -r '.version // "Unknown"' "$EXTENSION_DIR/manifest.json")
           
           echo "- **Name**: $EXT_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: $EXT_VERSION" >> $GITHUB_STEP_SUMMARY
@@ -96,8 +104,10 @@ runs:
       shell: bash
     
     - name: Verify Package Contents
+      env:
+        OUTPUT_NAME: ${{ inputs.output-name }}
       run: |
-        OUTPUT_FILE="${{ inputs.output-name }}.zip"
+        OUTPUT_FILE="${OUTPUT_NAME}.zip"
         
         echo "::group::Package Contents"
         unzip -l "$OUTPUT_FILE" | head -20
