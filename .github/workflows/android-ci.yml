@@ -48,6 +48,18 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        
+      - name: Checkout Workflows Repo for Release Validation
+        uses: actions/checkout@v4
+        with:
+          repository: ravitejakamalapuram/.github-workflows-shared
+          path: .github-workflows-shared-temp
+          
+      - name: Validate Release Assets Compliance
+        run: |
+          python3 .github-workflows-shared-temp/scripts/validate-release-assets.py --path . --type android-app
+          rm -rf .github-workflows-shared-temp
+        shell: bash
       
       - name: Setup Android Environment
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/setup@main

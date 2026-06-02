@@ -152,6 +152,11 @@ runs:
         echo "✅ All JS files pass syntax check"
         echo "::endgroup::"
       shell: bash
+    
+    - name: Validate Release Assets and Compliance
+      run: |
+        python3 ${{ github.action_path }}/../../../scripts/validate-release-assets.py --path . --type chrome-extension --ext-dir "${{ inputs.extension-dir }}"
+      shell: bash
 
 branding:
   icon: 'check-circle'

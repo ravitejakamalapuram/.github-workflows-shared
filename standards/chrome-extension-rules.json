@@ -1,0 +1,34 @@
+{
+  "rules": [
+    {
+      "id": "manifest-validity",
+      "name": "Manifest Validity",
+      "description": "manifest.json must exist, be valid JSON, and use Manifest V3.",
+      "severity": "error"
+    },
+    {
+      "id": "changelog-entry",
+      "name": "Changelog Entry",
+      "description": "CHANGELOG.md must contain a release entry matching the current manifest version.",
+      "severity": "error"
+    },
+    {
+      "id": "privacy-policy",
+      "name": "Privacy Policy Presence",
+      "description": "PRIVACY.md must exist in the repository root and contain no placeholders.",
+      "severity": "error"
+    },
+    {
+      "id": "store-metadata",
+      "name": "Store Metadata Completeness",
+      "description": "CHROMEWEBSTORE.md must exist, be fully populated, and contain no [REQUIRED] or [RECOMMENDED] placeholders.",
+      "severity": "error"
+    },
+    {
+      "id": "store-assets",
+      "name": "Store Listing Graphic Assets",
+      "description": "All icons and screenshots referenced in CHROMEWEBSTORE.md and manifest.json must exist on disk.",
+      "severity": "warning"
+    }
+  ]
+}

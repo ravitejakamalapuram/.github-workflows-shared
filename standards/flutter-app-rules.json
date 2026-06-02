@@ -1,0 +1,22 @@
+{
+  "rules": [
+    {
+      "id": "pubspec-version",
+      "name": "Pubspec Version bump",
+      "description": "pubspec.yaml version must be incremented.",
+      "severity": "error"
+    },
+    {
+      "id": "localization-validation",
+      "name": "Localization Validation",
+      "description": "Localization resource files (e.g. ARB files) must compile successfully.",
+      "severity": "error"
+    },
+    {
+      "id": "changelog-entry",
+      "name": "Changelog Entry",
+      "description": "CHANGELOG.md must exist and contain a release entry for the new version.",
+      "severity": "error"
+    }
+  ]
+}

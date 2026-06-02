@@ -1,0 +1,22 @@
+{
+  "rules": [
+    {
+      "id": "keystore-config",
+      "name": "Keystore Configuration",
+      "description": "Keystore files or corresponding GitHub Secrets must be configured.",
+      "severity": "error"
+    },
+    {
+      "id": "changelog-entry",
+      "name": "Changelog Entry",
+      "description": "CHANGELOG.md must exist and contain a release entry matching the version bump.",
+      "severity": "error"
+    },
+    {
+      "id": "bundle-size-check",
+      "name": "App Bundle Size Check",
+      "description": "The release app bundle (AAB) must be within standard size limits (usually <150MB).",
+      "severity": "warning"
+    }
+  ]
+}

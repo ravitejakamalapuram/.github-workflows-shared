@@ -1438,7 +1438,7 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         // Standard helpers
-        string.prototype.strip = function() {
+        String.prototype.strip = function() {
             return this.replace(/^\\s+|\\s+$/g, '');
         };
     </script>
