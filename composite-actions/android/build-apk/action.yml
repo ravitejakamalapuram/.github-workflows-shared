@@ -53,36 +53,50 @@ runs:
   steps:
     - name: Decode Release Keystore
       if: inputs.build-type == 'release' && inputs.keystore-base64 != ''
+      env:
+        KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
+        KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
+        KEY_ALIAS: ${{ inputs.key-alias }}
+        KEY_PASSWORD: ${{ inputs.key-password }}
       run: |
-        echo "${{ inputs.keystore-base64 }}" | base64 --decode > app/release.keystore
+        echo "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
         echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
-        echo "KEYSTORE_PASSWORD=${{ inputs.keystore-password }}" >> $GITHUB_ENV
-        echo "KEY_ALIAS=${{ inputs.key-alias }}" >> $GITHUB_ENV
-        echo "KEY_PASSWORD=${{ inputs.key-password }}" >> $GITHUB_ENV
+        echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+        echo "KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
+        echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
         echo "✅ Keystore decoded successfully"
       shell: bash
     
     - name: Build APK
       id: build
+      env:
+        BUILD_TYPE: ${{ inputs.build-type }}
+        VERSION_CODE: ${{ inputs.version-code }}
+        VERSION_NAME: ${{ inputs.version-name }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
+        KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+        KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ env.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
       run: |
         set -e
-        
-        BUILD_TASK="assemble$(echo ${{ inputs.build-type }} | sed 's/^./\U&/')"
-        
+
+        BUILD_TASK="assemble$(echo $BUILD_TYPE | sed 's/^./\U&/')"
+
         VERSION_ARGS=""
-        [ -n "${{ inputs.version-code }}" ] && VERSION_ARGS="$VERSION_ARGS -PversionCode=${{ inputs.version-code }}"
-        [ -n "${{ inputs.version-name }}" ] && VERSION_ARGS="$VERSION_ARGS -PversionName=${{ inputs.version-name }}"
-        
-        echo "::group::Building APK (${{ inputs.build-type }})"
-        ./gradlew $BUILD_TASK $VERSION_ARGS ${{ inputs.extra-args }}
+        [ -n "$VERSION_CODE" ] && VERSION_ARGS="$VERSION_ARGS -PversionCode=$VERSION_CODE"
+        [ -n "$VERSION_NAME" ] && VERSION_ARGS="$VERSION_ARGS -PversionName=$VERSION_NAME"
+
+        echo "::group::Building APK ($BUILD_TYPE)"
+        ./gradlew $BUILD_TASK $VERSION_ARGS $EXTRA_ARGS
         echo "::endgroup::"
-        
+
         # Find the generated APK
-        APK_PATH=$(find . -name "*-${{ inputs.build-type }}.apk" | head -1)
+        APK_PATH=$(find . -name "*-$BUILD_TYPE.apk" | head -1)
         if [ -z "$APK_PATH" ]; then
-          APK_PATH=$(find . -path "*/build/outputs/apk/${{ inputs.build-type }}/*.apk" | head -1)
+          APK_PATH=$(find . -path "*/build/outputs/apk/$BUILD_TYPE/*.apk" | head -1)
         fi
-        
+
         if [ -n "$APK_PATH" ]; then
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
@@ -93,11 +107,6 @@ runs:
           exit 1
         fi
       shell: bash
-      env:
-        KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
-        KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ env.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
     
     - name: Cleanup Keystore
       if: always() && inputs.build-type == 'release' && inputs.keystore-base64 != ''

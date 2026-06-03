@@ -45,55 +45,63 @@ runs:
   steps:
     - name: Decode Release Keystore
       if: inputs.keystore-base64 != ''
+      env:
+        KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
+        KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
+        KEY_ALIAS: ${{ inputs.key-alias }}
+        KEY_PASSWORD: ${{ inputs.key-password }}
       run: |
-        echo "${{ inputs.keystore-base64 }}" | base64 --decode > app/release.keystore
+        echo "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
         echo "KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
-        echo "KEYSTORE_PASSWORD=${{ inputs.keystore-password }}" >> $GITHUB_ENV
-        echo "KEY_ALIAS=${{ inputs.key-alias }}" >> $GITHUB_ENV
-        echo "KEY_PASSWORD=${{ inputs.key-password }}" >> $GITHUB_ENV
+        echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+        echo "KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
+        echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
         echo "✅ Keystore decoded successfully"
       shell: bash
     
     - name: Build App Bundle (AAB)
       id: build
+      env:
+        VERSION_CODE: ${{ inputs.version-code }}
+        VERSION_NAME: ${{ inputs.version-name }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
+        KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+        KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ env.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
       run: |
         set -e
-        
+
         VERSION_ARGS=""
-        [ -n "${{ inputs.version-code }}" ] && VERSION_ARGS="$VERSION_ARGS -PversionCode=${{ inputs.version-code }}"
-        [ -n "${{ inputs.version-name }}" ] && VERSION_ARGS="$VERSION_ARGS -PversionName=${{ inputs.version-name }}"
-        
+        [ -n "$VERSION_CODE" ] && VERSION_ARGS="$VERSION_ARGS -PversionCode=$VERSION_CODE"
+        [ -n "$VERSION_NAME" ] && VERSION_ARGS="$VERSION_ARGS -PversionName=$VERSION_NAME"
+
         echo "::group::Building App Bundle (AAB)"
-        ./gradlew bundleRelease $VERSION_ARGS ${{ inputs.extra-args }}
+        ./gradlew bundleRelease $VERSION_ARGS $EXTRA_ARGS
         echo "::endgroup::"
-        
+
         # Find the generated AAB
         AAB_PATH=$(find . -name "*-release.aab" | head -1)
         if [ -z "$AAB_PATH" ]; then
           AAB_PATH=$(find . -path "*/build/outputs/bundle/release/*.aab" | head -1)
         fi
-        
+
         if [ -n "$AAB_PATH" ]; then
           echo "aab_path=$AAB_PATH" >> $GITHUB_OUTPUT
           AAB_SIZE=$(du -h "$AAB_PATH" | cut -f1)
           echo "✅ AAB built successfully: $AAB_PATH ($AAB_SIZE)"
-          
+
           echo "## 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
           echo "- **AAB Path**: \`$AAB_PATH\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Size**: $AAB_SIZE" >> $GITHUB_STEP_SUMMARY
-          if [ -n "${{ inputs.version-name }}" ]; then
-            echo "- **Version**: ${{ inputs.version-name }} (${{ inputs.version-code }})" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$VERSION_NAME" ]; then
+            echo "- **Version**: $VERSION_NAME ($VERSION_CODE)" >> $GITHUB_STEP_SUMMARY
           fi
         else
           echo "❌ AAB not found after build"
           exit 1
         fi
       shell: bash
-      env:
-        KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
-        KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ env.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
     
     - name: Cleanup Keystore
       if: always() && inputs.keystore-base64 != ''

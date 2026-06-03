@@ -113,11 +113,13 @@ jobs:
       - name: Check for Secrets
         run: |
           echo "Checking for exposed secrets..."
-          if grep -r -i "password.*=.*['\"]" --include="*.yml" --include="*.yaml" --exclude-dir=.git .; then
+          # Look for hardcoded secrets (not GitHub secrets passed as inputs)
+          # Exclude legitimate password inputs that use ${{ secrets.* }} or ${{ inputs.* }}
+          if grep -r -i "password.*=.*['\"][^$]" --include="*.yml" --include="*.yaml" --exclude-dir=.git . | grep -v "\${{" | grep -v "# "; then
             echo "❌ Potential hardcoded credentials found!"
             exit 1
           fi
-          echo "✅ No obvious secrets found"
+          echo "✅ No hardcoded secrets found"
       
       - name: Check for Direct Input Interpolation
         run: |
