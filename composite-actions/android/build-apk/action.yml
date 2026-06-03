@@ -81,7 +81,7 @@ runs:
       run: |
         set -e
 
-        BUILD_TASK="assemble$(echo $BUILD_TYPE | sed 's/^./\U&/')"
+        BUILD_TASK="assemble$(echo "$BUILD_TYPE" | awk '{print toupper(substr($0,1,1))substr($0,2)}')"
 
         VERSION_ARGS=""
         [ -n "$VERSION_CODE" ] && VERSION_ARGS="$VERSION_ARGS -PversionCode=$VERSION_CODE"
