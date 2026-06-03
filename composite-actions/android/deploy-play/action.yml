@@ -38,16 +38,21 @@ runs:
   using: 'composite'
   steps:
     - name: Validate Inputs
+      env:
+        AAB_PATH: ${{ inputs.aab-path }}
+        PACKAGE_NAME: ${{ inputs.package-name }}
+        TRACK: ${{ inputs.track }}
+        USER_FRACTION: ${{ inputs.user-fraction }}
       run: |
-        if [ ! -f "${{ inputs.aab-path }}" ]; then
-          echo "❌ AAB file not found: ${{ inputs.aab-path }}"
+        if [ ! -f "$AAB_PATH" ]; then
+          echo "❌ AAB file not found: $AAB_PATH"
           exit 1
         fi
-        
-        echo "✅ AAB file found: ${{ inputs.aab-path }}"
-        echo "📦 Package: ${{ inputs.package-name }}"
-        echo "🎯 Track: ${{ inputs.track }}"
-        echo "📊 User Fraction: ${{ inputs.user-fraction }}"
+
+        echo "✅ AAB file found: $AAB_PATH"
+        echo "📦 Package: $PACKAGE_NAME"
+        echo "🎯 Track: $TRACK"
+        echo "📊 User Fraction: $USER_FRACTION"
       shell: bash
     
     - name: Upload to Google Play
@@ -64,20 +69,27 @@ runs:
     
     - name: Upload Summary
       if: always()
+      env:
+        UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+        TRACK: ${{ inputs.track }}
+        PACKAGE_NAME: ${{ inputs.package-name }}
+        RELEASE_STATUS: ${{ inputs.release-status }}
+        USER_FRACTION: ${{ inputs.user-fraction }}
       run: |
         echo "## 🚀 Google Play Deployment" >> $GITHUB_STEP_SUMMARY
-        
-        if [ "${{ steps.upload.outcome }}" == "success" ]; then
-          echo "✅ Successfully uploaded to **${{ inputs.track }}** track" >> $GITHUB_STEP_SUMMARY
+
+        if [ "$UPLOAD_OUTCOME" == "success" ]; then
+          echo "✅ Successfully uploaded to **$TRACK** track" >> $GITHUB_STEP_SUMMARY
         else
           echo "❌ Upload to Google Play failed" >> $GITHUB_STEP_SUMMARY
         fi
-        
-        echo "- **Package**: \`${{ inputs.package-name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Track**: ${{ inputs.track }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Status**: ${{ inputs.release-status }}" >> $GITHUB_STEP_SUMMARY
-        if [ "${{ inputs.track }}" == "production" ]; then
-          echo "- **Rollout**: $(echo "${{ inputs.user-fraction }} * 100" | bc)%" >> $GITHUB_STEP_SUMMARY
+
+        echo "- **Package**: \`$PACKAGE_NAME\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Track**: $TRACK" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: $RELEASE_STATUS" >> $GITHUB_STEP_SUMMARY
+        if [ "$TRACK" == "production" ]; then
+          ROLLOUT=$(echo "$USER_FRACTION * 100" | bc)
+          echo "- **Rollout**: ${ROLLOUT}%" >> $GITHUB_STEP_SUMMARY
         fi
       shell: bash
 

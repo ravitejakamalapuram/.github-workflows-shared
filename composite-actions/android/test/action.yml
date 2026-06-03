@@ -37,21 +37,29 @@ runs:
   steps:
     - name: Run Android Unit Tests
       id: test
+      env:
+        MODULES: ${{ inputs.modules }}
+        TEST_TASK: ${{ inputs.test-task }}
+        FAIL_FAST: ${{ inputs.fail-fast }}
       run: |
         set -e
-        
-        if [ -n "${{ inputs.modules }}" ]; then
-          echo "Running tests for modules: ${{ inputs.modules }}"
-          for module in ${{ inputs.modules }}; do
+
+        if [ -n "$MODULES" ]; then
+          echo "Running tests for modules: $MODULES"
+          for module in $MODULES; do
             echo "::group::Testing module: $module"
-            ./gradlew :${module}:${{ inputs.test-task }} ${{ inputs.fail-fast == 'true' && '--fail-fast' || '' }}
+            FAIL_FAST_FLAG=""
+            [ "$FAIL_FAST" == "true" ] && FAIL_FAST_FLAG="--fail-fast"
+            ./gradlew :${module}:$TEST_TASK $FAIL_FAST_FLAG
             echo "::endgroup::"
           done
         else
           echo "Running all tests"
-          ./gradlew ${{ inputs.test-task }} ${{ inputs.fail-fast == 'true' && '--fail-fast' || '' }}
+          FAIL_FAST_FLAG=""
+          [ "$FAIL_FAST" == "true" ] && FAIL_FAST_FLAG="--fail-fast"
+          ./gradlew $TEST_TASK $FAIL_FAST_FLAG
         fi
-        
+
         echo "✅ All tests passed"
       shell: bash
       continue-on-error: false
