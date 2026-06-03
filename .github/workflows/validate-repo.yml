@@ -1,0 +1,149 @@
+name: Validate Repository
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate-actions:
+    name: Validate Composite Actions
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Dependencies
+        run: pip install pyyaml
+      
+      - name: Validate Action Structure
+        run: python3 scripts/validate-actions.py
+      
+      - name: Check YAML Syntax
+        run: |
+          echo "Validating all YAML files..."
+          find . -name "*.yml" -o -name "*.yaml" | while read file; do
+            echo "Checking $file..."
+            python3 -c "import yaml; yaml.safe_load(open('$file'))"
+          done
+          echo "✅ All YAML files are valid"
+  
+  validate-workflows:
+    name: Validate Workflows
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Dependencies
+        run: pip install pyyaml
+      
+      - name: Validate Workflow Syntax
+        run: |
+          echo "Validating workflow files..."
+          for file in .github/workflows/*.yml; do
+            echo "Checking $file..."
+            python3 -c "import yaml; yaml.safe_load(open('$file'))"
+          done
+          echo "✅ All workflow files are valid"
+  
+  validate-scripts:
+    name: Validate Scripts
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Check Python Syntax
+        run: |
+          echo "Validating Python scripts..."
+          find scripts -name "*.py" -exec python3 -m py_compile {} \;
+          echo "✅ All Python scripts compile successfully"
+      
+      - name: Check Shell Scripts
+        run: |
+          echo "Validating shell scripts..."
+          find scripts -name "*.sh" -exec bash -n {} \;
+          echo "✅ All shell scripts are valid"
+  
+  validate-configs:
+    name: Validate Configurations
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Validate JSON Files
+        run: |
+          echo "Validating JSON config files..."
+          for file in config/*.json standards/*.json; do
+            echo "Checking $file..."
+            python3 -m json.tool "$file" > /dev/null
+          done
+          echo "✅ All JSON files are valid"
+  
+  validate-security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Check for Secrets
+        run: |
+          echo "Checking for exposed secrets..."
+          if grep -r -i "password.*=.*['\"]" --include="*.yml" --include="*.yaml" --exclude-dir=.git .; then
+            echo "❌ Potential hardcoded credentials found!"
+            exit 1
+          fi
+          echo "✅ No obvious secrets found"
+      
+      - name: Check for Direct Input Interpolation
+        run: |
+          echo "Checking for security best practices..."
+          # This is informational only - not failing the build
+          python3 scripts/validate-actions.py || true
+  
+  markdown-lint:
+    name: Lint Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Check Markdown Links
+        run: |
+          echo "Checking for broken markdown links..."
+          # Basic check for markdown syntax
+          find . -name "*.md" -exec grep -H "]\[" {} \; || echo "✅ No obvious markdown issues"
+  
+  all-checks-passed:
+    name: All Checks Passed
+    runs-on: ubuntu-latest
+    needs: [validate-actions, validate-workflows, validate-scripts, validate-configs, validate-security, markdown-lint]
+    
+    steps:
+      - name: Success
+        run: echo "🎉 All validation checks passed!"

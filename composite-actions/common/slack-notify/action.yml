@@ -104,3 +104,7 @@ runs:
         
         echo "✅ Slack notification sent successfully!"
       shell: bash
+
+branding:
+  icon: 'message-circle'
+  color: 'blue'
