@@ -9,3 +9,6 @@
 ## 2024-06-03 - Avoid High Python Startup Overhead in GitHub Actions Bash Scripts
 **Learning:** Using `python3 -c` or `python3 -m json.tool` for simple JSON parsing or validation inside GitHub Actions bash scripts introduces high overhead due to Python interpreter startup time. This is especially impactful in composite actions executed multiple times.
 **Action:** Always prefer using `jq` for inline JSON operations within bash scripts. Use `jq empty` for fast validation and `jq -r '.key // "default"'` for retrieving properties safely and efficiently.
+## 2024-05-30 - Python interpreter startup overhead in bash loops
+**Learning:** Invoking Python (`python3 -c`) inside bash loops (e.g., `while read` or `for file in ...`) for CI scripts causes massive performance overhead due to the repeated initialization of the Python runtime for every single file.
+**Action:** Use `xargs` to batch files into a single Python execution (e.g., `find ... | xargs python3 -c 'import sys; [process(f) for f in sys.argv[1:]]'`) or use tools natively designed for streams like `jq` to process data significantly faster.

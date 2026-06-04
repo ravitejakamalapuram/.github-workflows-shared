@@ -29,10 +29,15 @@ jobs:
       - name: Check YAML Syntax
         run: |
           echo "Validating all YAML files..."
-          find . -name "*.yml" -o -name "*.yaml" | while read file; do
-            echo "Checking $file..."
-            python3 -c "import yaml; yaml.safe_load(open('$file'))"
-          done
+          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 python3 -c '
+          import sys, yaml
+          for f in sys.argv[1:]:
+              try:
+                  yaml.safe_load(open(f))
+              except Exception as e:
+                  print(f"Error checking {f}:\n{e}")
+                  sys.exit(1)
+          '
           echo "✅ All YAML files are valid"
   
   validate-workflows:
@@ -54,10 +59,15 @@ jobs:
       - name: Validate Workflow Syntax
         run: |
           echo "Validating workflow files..."
-          for file in .github/workflows/*.yml; do
-            echo "Checking $file..."
-            python3 -c "import yaml; yaml.safe_load(open('$file'))"
-          done
+          python3 -c '
+          import sys, yaml
+          for f in sys.argv[1:]:
+              try:
+                  yaml.safe_load(open(f))
+              except Exception as e:
+                  print(f"Error checking {f}:\n{e}")
+                  sys.exit(1)
+          ' .github/workflows/*.yml
           echo "✅ All workflow files are valid"
   
   validate-scripts:
@@ -96,10 +106,7 @@ jobs:
       - name: Validate JSON Files
         run: |
           echo "Validating JSON config files..."
-          for file in config/*.json standards/*.json; do
-            echo "Checking $file..."
-            python3 -m json.tool "$file" > /dev/null
-          done
+          find config standards -name "*.json" -print0 | xargs -0 sh -c 'for file; do jq empty "$file" || exit 255; done' sh
           echo "✅ All JSON files are valid"
   
   validate-security:
