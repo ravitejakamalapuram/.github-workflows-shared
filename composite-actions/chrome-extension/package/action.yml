@@ -94,8 +94,8 @@ runs:
           echo "- **Size**: $ZIP_SIZE" >> $GITHUB_STEP_SUMMARY
           
           # Get extension info from manifest using jq
-          EXT_NAME=$(jq -r '.name // "Unknown"' "$EXTENSION_DIR/manifest.json")
-          EXT_VERSION=$(jq -r '.version // "Unknown"' "$EXTENSION_DIR/manifest.json")
+          # ⚡ Bolt Optimization: Batch jq queries to read the file once instead of twice
+          IFS=$'\t' read -r EXT_NAME EXT_VERSION < <(jq -r '[(.name // "Unknown"), (.version // "Unknown")] | @tsv' "$EXTENSION_DIR/manifest.json")
           
           echo "- **Name**: $EXT_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: $EXT_VERSION" >> $GITHUB_STEP_SUMMARY
