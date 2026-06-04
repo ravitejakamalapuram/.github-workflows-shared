@@ -1,0 +1,3 @@
+## 2026-06-04 - Keyboard Accessibility for Dynamically Generated Interactive Elements
+**Learning:** Dynamically generated interactive elements acting as buttons (like `div` elements) in Python-served HTML are not inherently accessible. They require explicit `tabindex=0`, `role="button"`, and keyboard event listeners (Enter and Space) to ensure they can be used by keyboard-only users.
+**Action:** When dynamically generating non-standard interactive UI elements, always inject semantic `role`, `tabindex`, ARIA attributes (e.g. `aria-pressed`), and attach explicit `keydown` listeners mirroring `click` behavior.
