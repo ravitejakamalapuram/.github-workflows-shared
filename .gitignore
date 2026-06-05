@@ -21,6 +21,13 @@ yarn-error.log*
 *.temp
 .cache/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
 # OS
 Thumbs.db
 Desktop.ini
