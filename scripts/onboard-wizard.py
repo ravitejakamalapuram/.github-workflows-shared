@@ -758,6 +758,11 @@ INDEX_HTML = """<!DOCTYPE html>
             box-shadow: none !important;
         }
 
+        .btn:focus-visible {
+            outline: 2px solid var(--accent-cyan);
+            outline-offset: 2px;
+        }
+
         .instructions-panel {
             background: rgba(15, 23, 42, 0.6);
             border: 1px solid var(--card-border);
