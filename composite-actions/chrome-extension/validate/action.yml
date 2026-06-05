@@ -99,44 +99,44 @@ runs:
       if: inputs.check-icons == 'true'
       run: |
         EXT_DIR="${{ inputs.extension-dir }}"
+        MANIFEST="$EXT_DIR/manifest.json"
         
         echo "::group::Validating Icon Files"
-        python3 << 'PYTHON_SCRIPT'
-        import json
-        import os
-        import sys
 
-        manifest_path = "${{ inputs.extension-dir }}/manifest.json"
-        with open(manifest_path) as f:
-            data = json.load(f)
+        MISSING_ICONS=()
 
-        missing_icons = []
+        # Extract missing icons
+        while read -r line; do
+          MISSING_ICONS+=("$line")
+        done < <(
+          jq -r '
+            (
+              select(.icons != null and (.icons | type == "object")) | .icons | to_entries[] | "icons.\(.key)|\(.value)"
+            ),
+            (
+              if .manifest_version == 3 then
+                select(.action != null and .action.default_icon != null and (.action.default_icon | type == "object")) | .action.default_icon | to_entries[] | "action.default_icon.\(.key)|\(.value)"
+              else
+                select(.browser_action != null and .browser_action.default_icon != null and (.browser_action.default_icon | type == "object")) | .browser_action.default_icon | to_entries[] | "browser_action.default_icon.\(.key)|\(.value)"
+              end
+            )
+          ' "$MANIFEST" 2>/dev/null | while IFS="|" read -r key val; do
+            if [ -n "$val" ] && [ ! -e "$EXT_DIR/$val" ]; then
+              echo "$key: $val"
+            fi
+          done
+        )
 
-        # Check icons
-        if 'icons' in data:
-            for size, path in data['icons'].items():
-                full_path = os.path.join("${{ inputs.extension-dir }}", path)
-                if not os.path.exists(full_path):
-                    missing_icons.append(f"icons.{size}: {path}")
+        if [ ${#MISSING_ICONS[@]} -gt 0 ]; then
+          echo "::error::Missing icon files:"
+          for icon in "${MISSING_ICONS[@]}"; do
+            echo "::error::  - $icon"
+          done
+          exit 1
+        else
+          echo "✅ All declared icon files exist"
+        fi
 
-        # Check action icons (MV3) or browser_action icons (MV2)
-        action_key = 'action' if data.get('manifest_version') == 3 else 'browser_action'
-        if action_key in data and 'default_icon' in data[action_key]:
-            icons = data[action_key]['default_icon']
-            if isinstance(icons, dict):
-                for size, path in icons.items():
-                    full_path = os.path.join("${{ inputs.extension-dir }}", path)
-                    if not os.path.exists(full_path):
-                        missing_icons.append(f"{action_key}.default_icon.{size}: {path}")
-
-        if missing_icons:
-            print("::error::Missing icon files:")
-            for icon in missing_icons:
-                print(f"::error::  - {icon}")
-            sys.exit(1)
-        else:
-            print("✅ All declared icon files exist")
-        PYTHON_SCRIPT
         echo "::endgroup::"
       shell: bash
     
