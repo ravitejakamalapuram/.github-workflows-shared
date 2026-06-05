@@ -21,3 +21,7 @@
 ## 2024-06-05 - Batching JQ Queries to Avoid Redundant Process Overhead
 **Learning:** When needing multiple fields from a JSON file using `jq` in bash, invoking `jq` multiple times (e.g. `EXT_NAME=$(jq ...)`, `EXT_VERSION=$(jq ...)`) adds redundant process startup overhead.
 **Action:** Always batch `jq` operations when extracting multiple properties from the same file. Use `jq -r '[.prop1, .prop2] | @tsv'` and read the values simultaneously using `IFS=$'\t' read -r var1 var2 < <(jq ...)`.
+
+## 2026-06-05 - Avoid 'find -exec' process spawning overhead in GitHub Actions
+**Learning:** Using `find ... -exec ... {} \;` in CI bash scripts spawns a new process for every single file matched. For fast operations like `bash -n`, `grep`, or `python3 -m py_compile`, the overhead of spawning the process becomes the dominant performance bottleneck and scales terribly.
+**Action:** Always use `find ... -print0 | xargs -0 ...` to batch operations. Passing multiple files to a single command invocation is significantly faster than executing the command once per file.

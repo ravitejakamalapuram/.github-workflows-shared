@@ -86,13 +86,13 @@ jobs:
       - name: Check Python Syntax
         run: |
           echo "Validating Python scripts..."
-          find scripts -name "*.py" -exec python3 -m py_compile {} \;
+          find scripts -name "*.py" -print0 | xargs -0 -r python3 -m py_compile
           echo "✅ All Python scripts compile successfully"
       
       - name: Check Shell Scripts
         run: |
           echo "Validating shell scripts..."
-          find scripts -name "*.sh" -exec bash -n {} \;
+          find scripts -name "*.sh" -print0 | xargs -0 -r sh -c 'for script; do bash -n "$script" || exit 255; done' sh
           echo "✅ All shell scripts are valid"
   
   validate-configs:
@@ -146,7 +146,7 @@ jobs:
         run: |
           echo "Checking for broken markdown links..."
           # Basic check for markdown syntax
-          find . -name "*.md" -exec grep -H "]\[" {} \; || echo "✅ No obvious markdown issues"
+          find . -name "*.md" -print0 | xargs -0 -r grep -H "]\[" || echo "✅ No obvious markdown issues"
   
   all-checks-passed:
     name: All Checks Passed
