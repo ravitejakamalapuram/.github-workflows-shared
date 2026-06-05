@@ -678,6 +678,12 @@ INDEX_HTML = """<!DOCTYPE html>
             box-shadow: 0 0 15px rgba(6, 182, 212, 0.1);
         }
 
+        .repo-item:focus-visible {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+        }
+
         .repo-name {
             font-weight: 700;
             font-size: 16px;
@@ -750,6 +756,11 @@ INDEX_HTML = """<!DOCTYPE html>
             cursor: not-allowed;
             transform: none !important;
             box-shadow: none !important;
+        }
+
+        .btn:focus-visible {
+            outline: 2px solid var(--accent-cyan);
+            outline-offset: 2px;
         }
 
         .instructions-panel {
@@ -1147,7 +1158,11 @@ INDEX_HTML = """<!DOCTYPE html>
 
             state.repos.forEach(repo => {
                 const item = document.createElement("div");
-                item.className = `repo-item ${state.selectedRepo && state.selectedRepo.path === repo.path ? 'selected' : ''}`;
+                const isSelected = state.selectedRepo && state.selectedRepo.path === repo.path;
+                item.className = `repo-item ${isSelected ? 'selected' : ''}`;
+                item.tabIndex = 0;
+                item.setAttribute("role", "button");
+                item.setAttribute("aria-pressed", isSelected ? "true" : "false");
                 
                 const metaBadges = [];
                 if (repo.is_extension) {
@@ -1172,9 +1187,20 @@ INDEX_HTML = """<!DOCTYPE html>
                 `;
 
                 item.addEventListener("click", () => {
-                    document.querySelectorAll(".repo-item").forEach(el => el.classList.remove("selected"));
+                    document.querySelectorAll(".repo-item").forEach(el => {
+                        el.classList.remove("selected");
+                        el.setAttribute("aria-pressed", "false");
+                    });
                     item.classList.add("selected");
+                    item.setAttribute("aria-pressed", "true");
                     selectRepository(repo);
+                });
+
+                item.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        item.click();
+                    }
                 });
 
                 container.appendChild(item);

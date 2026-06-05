@@ -34,13 +34,15 @@ runs:
   steps:
     - name: Check for ESLint config
       id: check-eslint
+      env:
+        INPUT_CONFIG_FILE: ${{ inputs.config-file }}
       run: |
         if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f ".eslintrc.yml" ] || [ -f "eslint.config.js" ]; then
           echo "config_found=true" >> $GITHUB_OUTPUT
           echo "✅ ESLint config found"
-        elif [ -n "${{ inputs.config-file }}" ] && [ -f "${{ inputs.config-file }}" ]; then
+        elif [ -n "$INPUT_CONFIG_FILE" ] && [ -f "$INPUT_CONFIG_FILE" ]; then
           echo "config_found=true" >> $GITHUB_OUTPUT
-          echo "✅ Using provided ESLint config: ${{ inputs.config-file }}"
+          echo "✅ Using provided ESLint config: $INPUT_CONFIG_FILE"
         else
           echo "config_found=false" >> $GITHUB_OUTPUT
           echo "⚠️ No ESLint config found - using defaults"
@@ -59,29 +61,38 @@ runs:
     
     - name: Run ESLint
       id: lint
+      env:
+        INPUT_MAX_WARNINGS: ${{ inputs.max-warnings }}
+        INPUT_FIX: ${{ inputs.fix }}
+        INPUT_CONFIG_FILE: ${{ inputs.config-file }}
+        INPUT_IGNORE_PATTERN: ${{ inputs.ignore-pattern }}
+        INPUT_EXTENSION_DIR: ${{ inputs.extension-dir }}
       run: |
-        ESLINT_ARGS=""
+        ESLINT_ARGS=()
         
         # Add max warnings
-        ESLINT_ARGS="$ESLINT_ARGS --max-warnings ${{ inputs.max-warnings }}"
+        ESLINT_ARGS+=("--max-warnings" "$INPUT_MAX_WARNINGS")
         
         # Add fix flag
-        [ "${{ inputs.fix }}" == "true" ] && ESLINT_ARGS="$ESLINT_ARGS --fix"
+        [ "$INPUT_FIX" == "true" ] && ESLINT_ARGS+=("--fix")
         
         # Add config file
-        [ -n "${{ inputs.config-file }}" ] && ESLINT_ARGS="$ESLINT_ARGS --config ${{ inputs.config-file }}"
+        [ -n "$INPUT_CONFIG_FILE" ] && ESLINT_ARGS+=("--config" "$INPUT_CONFIG_FILE")
         
         # Add ignore patterns
-        for pattern in ${{ inputs.ignore-pattern }}; do
-          ESLINT_ARGS="$ESLINT_ARGS --ignore-pattern $pattern"
+        read -ra PATTERNS <<< "$INPUT_IGNORE_PATTERN"
+        for pattern in "${PATTERNS[@]}"; do
+          if [ -n "$pattern" ]; then
+            ESLINT_ARGS+=("--ignore-pattern" "$pattern")
+          fi
         done
         
         echo "::group::ESLint Check"
-        echo "Linting files in ${{ inputs.extension-dir }}..."
+        echo "Linting files in $INPUT_EXTENSION_DIR..."
         
-        npx eslint "${{ inputs.extension-dir }}/**/*.js" \
+        npx eslint "$INPUT_EXTENSION_DIR/**/*.js" \
           --ext .js \
-          $ESLINT_ARGS \
+          "${ESLINT_ARGS[@]}" \
           --format stylish
         
         echo "::endgroup::"
