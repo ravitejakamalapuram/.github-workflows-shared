@@ -1082,7 +1082,8 @@ INDEX_HTML = """<!DOCTYPE html>
                 <p style="color: var(--text-secondary); max-width: 600px;">GitHub Secrets are successfully provisioned. StellarTab is now linked with your centralized reusable workflows. Any push to the main branch will build, test, and auto-deploy updates directly to the Chrome Web Store.</p>
                 
                 <div class="code-box">
-                    <button class="copy-btn" onclick="copyGitCommands()">Copy</button>
+                    <button class="copy-btn" id="git-copy-btn" onclick="copyGitCommands()" aria-label="Copy git commands">Copy</button>
+                    <span id="git-copy-status" aria-live="polite" class="sr-only" style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;"></span>
                     <span style="color: var(--text-muted);"># Push your changes to Git:</span><br>
                     <span style="color: var(--accent-cyan);">git add .</span><br>
                     <span style="color: var(--accent-cyan);">git commit -m "Onboard extension to centralized workflows"</span><br>
@@ -1459,7 +1460,18 @@ INDEX_HTML = """<!DOCTYPE html>
         function copyGitCommands() {
             const code = `git add .\\ngit commit -m "Onboard extension to centralized workflows"\\ngit push origin main`;
             navigator.clipboard.writeText(code).then(() => {
-                alert("Git commands copied to clipboard!");
+                const btn = document.getElementById("git-copy-btn");
+                const status = document.getElementById("git-copy-status");
+
+                btn.innerText = "Copied!";
+                btn.style.color = "var(--success)";
+                status.innerText = "Git commands copied to clipboard.";
+
+                setTimeout(() => {
+                    btn.innerText = "Copy";
+                    btn.style.color = "var(--text-secondary)";
+                    status.innerText = "";
+                }, 2000);
             });
         }
 

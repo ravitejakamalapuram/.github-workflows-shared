@@ -5,3 +5,6 @@
 ## 2026-06-04 - Keyboard Accessibility for Dynamically Generated Interactive Elements
 **Learning:** Dynamically generated interactive elements acting as buttons (like `div` elements) in Python-served HTML are not inherently accessible. They require explicit `tabindex=0`, `role="button"`, and keyboard event listeners (Enter and Space) to ensure they can be used by keyboard-only users.
 **Action:** When dynamically generating non-standard interactive UI elements, always inject semantic `role`, `tabindex`, ARIA attributes (e.g. `aria-pressed`), and attach explicit `keydown` listeners mirroring `click` behavior.
+## 2026-06-06 - Avoid thread-blocking alert dialogs
+**Learning:** Thread-blocking alerts for interactive feedback degrade UX and accessibility.
+**Action:** Use temporary inline text and aria-live regions instead.
