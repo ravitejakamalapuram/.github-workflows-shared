@@ -30,14 +30,16 @@ runs:
   steps:
     - name: Check for test script
       id: check-tests
+      env:
+        TEST_SCRIPT: ${{ inputs.test-script }}
       run: |
         if [ -f "package.json" ]; then
-          if grep -q "\"${{ inputs.test-script }}\"" package.json; then
+          if grep -q "\"$TEST_SCRIPT\"" package.json; then
             echo "test_script_found=true" >> $GITHUB_OUTPUT
-            echo "✅ Test script '${{ inputs.test-script }}' found in package.json"
+            echo "✅ Test script '$TEST_SCRIPT' found in package.json"
           else
             echo "test_script_found=false" >> $GITHUB_OUTPUT
-            echo "⚠️ No '${{ inputs.test-script }}' script found in package.json"
+            echo "⚠️ No '$TEST_SCRIPT' script found in package.json"
           fi
         else
           echo "test_script_found=false" >> $GITHUB_OUTPUT
@@ -48,13 +50,16 @@ runs:
     - name: Run Unit Tests
       id: test
       if: steps.check-tests.outputs.test_script_found == 'true'
+      env:
+        TEST_SCRIPT: ${{ inputs.test-script }}
+        COVERAGE: ${{ inputs.coverage }}
       run: |
         echo "::group::Running Unit Tests"
         
-        if [ "${{ inputs.coverage }}" == "true" ]; then
-          npm run ${{ inputs.test-script }} -- --coverage
+        if [ "$COVERAGE" == "true" ]; then
+          npm run "$TEST_SCRIPT" -- --coverage
         else
-          npm run ${{ inputs.test-script }}
+          npm run "$TEST_SCRIPT"
         fi
         
         echo "::endgroup::"
