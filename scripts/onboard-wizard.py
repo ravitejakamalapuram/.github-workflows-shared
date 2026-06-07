@@ -1082,7 +1082,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 <p style="color: var(--text-secondary); max-width: 600px;">GitHub Secrets are successfully provisioned. StellarTab is now linked with your centralized reusable workflows. Any push to the main branch will build, test, and auto-deploy updates directly to the Chrome Web Store.</p>
                 
                 <div class="code-box">
-                    <button class="copy-btn" onclick="copyGitCommands()">Copy</button>
+                    <button id="copy-btn" class="copy-btn" aria-live="polite" onclick="copyGitCommands()">Copy</button>
                     <span style="color: var(--text-muted);"># Push your changes to Git:</span><br>
                     <span style="color: var(--accent-cyan);">git add .</span><br>
                     <span style="color: var(--accent-cyan);">git commit -m "Onboard extension to centralized workflows"</span><br>
@@ -1459,7 +1459,14 @@ INDEX_HTML = """<!DOCTYPE html>
         function copyGitCommands() {
             const code = `git add .\\ngit commit -m "Onboard extension to centralized workflows"\\ngit push origin main`;
             navigator.clipboard.writeText(code).then(() => {
-                alert("Git commands copied to clipboard!");
+                const btn = document.getElementById('copy-btn');
+                if (btn) {
+                    const originalText = btn.innerText;
+                    btn.innerText = 'Copied!';
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                    }, 2000);
+                }
             });
         }
 
