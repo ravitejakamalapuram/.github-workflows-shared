@@ -55,36 +55,27 @@ runs:
           STATUS_TEXT="⚠️ *Deployment Warning/Cancelled for $APP_NAME*"
         fi
 
-        # Start constructing fields array in JSON using jq
-        FIELDS="[]"
-
-        if [ -n "$VERSION" ]; then
-          FIELDS=$(echo "$FIELDS" | jq --arg val "$VERSION" '. += [{"title": "Version", "value": $val, "short": true}]')
-        fi
-
-        if [ -n "$BUILD_NUMBER" ]; then
-          FIELDS=$(echo "$FIELDS" | jq --arg val "$BUILD_NUMBER" '. += [{"title": "Build Number", "value": $val, "short": true}]')
-        fi
-
-        if [ -n "$TRACK" ]; then
-          FIELDS=$(echo "$FIELDS" | jq --arg val "$TRACK" '. += [{"title": "Track", "value": $val, "short": true}]')
-        fi
-
-        if [ -n "$SIZE_MB" ]; then
-          FIELDS=$(echo "$FIELDS" | jq --arg val "$SIZE_MB" '. += [{"title": "App Size", "value": ($val + " MB"), "short": true}]')
-        fi
-
+        # ⚡ Bolt Optimization: Batch jq queries to construct payload in one pass
         # Construct overall attachment payload
         PAYLOAD=$(jq -n \
           --arg text "$STATUS_TEXT" \
           --arg color "$COLOR" \
-          --argjson fields "$FIELDS" \
+          --arg version "$VERSION" \
+          --arg build_number "$BUILD_NUMBER" \
+          --arg track "$TRACK" \
+          --arg size_mb "$SIZE_MB" \
           '{
             text: $text,
             attachments: [
               {
                 color: $color,
-                fields: $fields
+                fields: (
+                  []
+                  + (if $version != "" then [{"title": "Version", "value": $version, "short": true}] else [] end)
+                  + (if $build_number != "" then [{"title": "Build Number", "value": $build_number, "short": true}] else [] end)
+                  + (if $track != "" then [{"title": "Track", "value": $track, "short": true}] else [] end)
+                  + (if $size_mb != "" then [{"title": "App Size", "value": ($size_mb + " MB"), "short": true}] else [] end)
+                )
               }
             ]
           }')
