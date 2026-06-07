@@ -34,15 +34,15 @@ runs:
   using: 'composite'
   steps:
     - name: Post Slack Notification via cURL
+      env:
+        STATUS: ${{ inputs.status }}
+        APP_NAME: ${{ inputs.app-name }}
+        VERSION: ${{ inputs.version }}
+        BUILD_NUMBER: ${{ inputs.build-number }}
+        TRACK: ${{ inputs.track }}
+        SIZE_MB: ${{ inputs.size-mb }}
+        SLACK_WEBHOOK_URL: ${{ inputs.slack-webhook-url }}
       run: |
-        STATUS="${{ inputs.status }}"
-        APP_NAME="${{ inputs.app-name }}"
-        VERSION="${{ inputs.version }}"
-        BUILD_NUMBER="${{ inputs.build-number }}"
-        TRACK="${{ inputs.track }}"
-        SIZE_MB="${{ inputs.size-mb }}"
-        SLACK_WEBHOOK_URL="${{ inputs.slack-webhook-url }}"
-
         # Determine color, icon and header text
         if [ "$STATUS" == "success" ]; then
           COLOR="#2eb886" # Green
