@@ -983,14 +983,15 @@ INDEX_HTML = """<!DOCTYPE html>
                 </ol>
             </div>
 
+            <div id="step-2-error" class="alert alert-error" style="display: none;" aria-live="polite"></div>
             <div class="form-group">
-                <label for="input-client-id">OAuth Client ID</label>
-                <input type="text" id="input-client-id" placeholder="Enter your Google OAuth Client ID">
+                <label for="input-client-id">OAuth Client ID <span style="color: var(--error);">*</span></label>
+                <input type="text" id="input-client-id" placeholder="Enter your Google OAuth Client ID" aria-required="true">
             </div>
 
             <div class="form-group">
-                <label for="input-client-secret">OAuth Client Secret</label>
-                <input type="password" id="input-client-secret" placeholder="Enter your Google OAuth Client Secret">
+                <label for="input-client-secret">OAuth Client Secret <span style="color: var(--error);">*</span></label>
+                <input type="password" id="input-client-secret" placeholder="Enter your Google OAuth Client Secret" aria-required="true">
             </div>
 
             <div class="checkbox-group">
@@ -1033,9 +1034,10 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div class="terminal-output" id="onboard-terminal-logs">Running onboarding scripts...</div>
             </div>
 
+            <div id="step-3-error" class="alert alert-error" style="display: none;" aria-live="polite"></div>
             <div class="form-group" id="extension-id-group" style="display: none; margin-top: 10px;">
-                <label for="input-extension-id">Chrome Extension ID (or listing URL)</label>
-                <input type="text" id="input-extension-id" placeholder="e.g., nkbihfbeogaeaoehlefnkodbefgpgknn or complete devconsole URL" oninput="parseExtIdInput()">
+                <label for="input-extension-id">Chrome Extension ID (or listing URL) <span style="color: var(--error);">*</span></label>
+                <input type="text" id="input-extension-id" placeholder="e.g., nkbihfbeogaeaoehlefnkodbefgpgknn or complete devconsole URL" oninput="parseExtIdInput()" aria-required="true">
                 <div id="ext-id-success-badge" class="alert alert-info" style="display: none; padding: 6px 12px; margin-top: 6px;">
                     🎯 Parsed Extension ID: <strong id="parsed-id-display"></strong>
                 </div>
@@ -1250,12 +1252,15 @@ INDEX_HTML = """<!DOCTYPE html>
         function validateStep2() {
             const client_id = document.getElementById("input-client-id").value.strip();
             const client_secret = document.getElementById("input-client-secret").value.strip();
+            const errorBox = document.getElementById("step-2-error");
 
             if (!client_id || !client_secret) {
-                alert("Please fill in OAuth Client ID and Client Secret.");
+                errorBox.style.display = "block";
+                errorBox.innerText = "Please fill in OAuth Client ID and Client Secret.";
                 return;
             }
 
+            errorBox.style.display = "none";
             state.credentials.client_id = client_id;
             state.credentials.client_secret = client_secret;
             
@@ -1326,10 +1331,13 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         function validateStep3() {
+            const errorBox = document.getElementById("step-3-error");
             if (!state.credentials.extension_id) {
-                alert("Please input a valid Chrome Extension ID or developer dashboard URL.");
+                errorBox.style.display = "block";
+                errorBox.innerText = "Please input a valid Chrome Extension ID or developer dashboard URL.";
                 return;
             }
+            errorBox.style.display = "none";
             goToStep(4);
         }
 
