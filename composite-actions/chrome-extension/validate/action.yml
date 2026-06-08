@@ -84,9 +84,8 @@ runs:
       run: |
         EXT_DIR="${{ inputs.extension-dir }}"
         
-        VERSION=$(jq -r '.manifest_version' "$EXT_DIR/manifest.json")
-        NAME=$(jq -r '.name // "Unknown"' "$EXT_DIR/manifest.json")
-        EXT_VERSION=$(jq -r '.version // "Unknown"' "$EXT_DIR/manifest.json")
+        # ⚡ Bolt Optimization: Batch jq queries to read the file once instead of multiple times
+        IFS=$'\t' read -r VERSION NAME EXT_VERSION < <(jq -r '[(.manifest_version // "Unknown"), (.name // "Unknown"), (.version // "Unknown")] | @tsv' "$EXT_DIR/manifest.json")
         
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "name=$NAME" >> $GITHUB_OUTPUT
