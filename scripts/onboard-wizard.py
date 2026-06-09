@@ -1283,6 +1283,7 @@ INDEX_HTML = """<!DOCTYPE html>
             const logsOutput = document.getElementById("onboard-terminal-logs");
             
             btn.disabled = true;
+            btn.innerHTML = `<span class="status-dot success spinning" style="width:12px; height:12px; border-width:2px; border-style:solid; border-color:transparent var(--success) var(--success); background:none; box-shadow:none;"></span> Packaging...`;
             logsContainer.style.display = "block";
             logsOutput.innerText = "Spawning onboarding scripts and packaging zip. Please wait...";
 
@@ -1312,6 +1313,7 @@ INDEX_HTML = """<!DOCTYPE html>
             .catch(err => {
                 logsOutput.innerText = "❌ Connection error during execution: " + err;
                 btn.disabled = false;
+                btn.innerText = "❌ Execution Failed. Click to Retry";
             });
         }
 
@@ -1432,6 +1434,7 @@ INDEX_HTML = """<!DOCTYPE html>
             const backBtn = document.getElementById("btn-final-back");
 
             finalBtn.setAttribute("aria-disabled", "true");
+            finalBtn.innerHTML = `<span class="status-dot success spinning" style="width:12px; height:12px; border-width:2px; border-style:solid; border-color:transparent var(--success) var(--success); background:none; box-shadow:none;"></span> Provisioning...`;
             backBtn.disabled = true;
             alertBox.style.display = "flex";
             alertBox.className = "alert alert-info";
@@ -1464,6 +1467,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     alertBox.className = "alert alert-error";
                     alertBox.innerText = "Failed to upload secrets: " + data.error;
                     finalBtn.removeAttribute("aria-disabled");
+                    finalBtn.innerText = "🚀 Set Secrets in GitHub Repository";
                     backBtn.disabled = false;
                 }
             })
@@ -1471,6 +1475,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 alertBox.className = "alert alert-error";
                 alertBox.innerText = "Connection error setting secrets: " + err;
                 finalBtn.removeAttribute("aria-disabled");
+                finalBtn.innerText = "🚀 Set Secrets in GitHub Repository";
                 backBtn.disabled = false;
             });
         }
