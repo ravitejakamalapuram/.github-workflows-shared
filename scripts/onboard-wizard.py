@@ -751,7 +751,7 @@ INDEX_HTML = """<!DOCTYPE html>
             background: rgba(255, 255, 255, 0.1);
         }
 
-        .btn:disabled {
+        .btn:disabled, .btn[aria-disabled="true"] {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none !important;
@@ -959,7 +959,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             <div class="btn-row">
                 <div></div>
-                <button class="btn btn-primary" id="btn-to-step-2" disabled>
+                <button class="btn btn-primary" id="btn-to-step-2" aria-disabled="true" title="Please select a repository first">
                     Proceed to Step 2 &rarr;
                 </button>
             </div>
@@ -1045,7 +1045,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             <div class="btn-row">
                 <button class="btn btn-secondary" onclick="goToStep(2)">&larr; Back</button>
-                <button class="btn btn-primary" id="btn-to-step-4" onclick="validateStep3()" disabled>
+                <button class="btn btn-primary" id="btn-to-step-4" onclick="if(this.getAttribute('aria-disabled')==='true') return; validateStep3()" aria-disabled="true" title="Please generate the ZIP and provide an Extension ID">
                     Proceed &rarr;
                 </button>
             </div>
@@ -1072,7 +1072,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             <div class="btn-row" id="final-btn-row">
                 <button class="btn btn-secondary" id="btn-final-back" onclick="goToStep(3)">&larr; Back</button>
-                <button class="btn btn-primary" id="btn-provision-secrets" onclick="provisionSecrets()" disabled>
+                <button class="btn btn-primary" id="btn-provision-secrets" onclick="if(this.getAttribute('aria-disabled')==='true') return; provisionSecrets()" aria-disabled="true" title="Please authorize with Google first">
                     🚀 Set Secrets in GitHub Repository
                 </button>
             </div>
@@ -1216,7 +1216,8 @@ INDEX_HTML = """<!DOCTYPE html>
             const text = document.getElementById("onboard-status-text");
 
             details.style.display = "block";
-            btn.disabled = false;
+            btn.setAttribute('aria-disabled', 'false');
+            btn.removeAttribute('title');
 
             if (repo.is_extension) {
                 text.innerHTML = `🎯 Target project: <strong>${repo.name}</strong> (${repo.ext_dir}). Reusable workflow will bind build actions to this directory.`;
@@ -1225,7 +1226,10 @@ INDEX_HTML = """<!DOCTYPE html>
             }
             
             // Set target directory on step 2 & 3
-            document.getElementById("btn-to-step-2").onclick = () => goToStep(2);
+            document.getElementById("btn-to-step-2").onclick = function() {
+                if(this.getAttribute('aria-disabled') === 'true') return;
+                goToStep(2);
+            };
         }
 
         function goToStep(stepNum) {
@@ -1322,11 +1326,13 @@ INDEX_HTML = """<!DOCTYPE html>
                 display.innerText = match[1];
                 badge.style.display = "flex";
                 badge.className = "alert alert-info";
-                btn.disabled = false;
+                btn.setAttribute('aria-disabled', 'false');
+                btn.removeAttribute('title');
             } else {
                 state.credentials.extension_id = "";
                 badge.style.display = "none";
-                btn.disabled = true;
+                btn.setAttribute('aria-disabled', 'true');
+                btn.setAttribute('title', 'Please generate the ZIP and provide an Extension ID');
             }
         }
 
@@ -1401,7 +1407,8 @@ INDEX_HTML = """<!DOCTYPE html>
                             // Update UI
                             text.innerHTML = `<span class="oauth-success-badge">✓ Google Account Connected!</span> Refresh Token captured.`;
                             btn.style.display = "none";
-                            nextBtn.disabled = false;
+                            nextBtn.setAttribute('aria-disabled', 'false');
+                            nextBtn.removeAttribute('title');
                         } else if (data.status === "error") {
                             clearInterval(pollInterval);
                             text.innerText = "OAuth Failed: " + data.error;

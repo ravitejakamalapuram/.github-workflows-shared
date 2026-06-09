@@ -36,3 +36,5 @@ Desktop.ini
 *.bak
 *.backup
 *~
+node_modules
+/node_modules
