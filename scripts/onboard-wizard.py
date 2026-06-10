@@ -1272,39 +1272,80 @@ INDEX_HTML = """<!DOCTYPE html>
 
         /* Terminal Console styles */
         .terminal-panel {
-            background: #04060a;
+            background: rgba(4, 6, 10, 0.85);
             border: 1px solid var(--card-border);
-            border-radius: 8px;
-            padding: 16px;
+            border-radius: 12px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.6), 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+            transition: border-color 0.3s;
+        }
+
+        .terminal-panel.active-build {
+            border-color: rgba(6, 182, 212, 0.4);
+            box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.05), 0 8px 32px rgba(6, 182, 212, 0.1);
         }
 
         .terminal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 10px;
         }
 
         .terminal-title {
             font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
-            color: var(--text-muted);
+            color: var(--text-secondary);
             text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .terminal-output {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            color: #10b981;
-            height: 250px;
+            font-size: 12.5px;
+            color: #e2e8f0;
+            height: 280px;
             overflow-y: auto;
             white-space: pre-wrap;
-            line-height: 1.6;
+            line-height: 1.7;
             scroll-behavior: smooth;
+            padding-right: 8px;
+        }
+
+        /* Custom scrollbar for terminal */
+        .terminal-output::-webkit-scrollbar {
+            width: 6px;
+        }
+        .terminal-output::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+        }
+        .terminal-output::-webkit-scrollbar-thumb {
+            background: rgba(6, 182, 212, 0.4);
+            border-radius: 3px;
+        }
+        .terminal-output::-webkit-scrollbar-thumb:hover {
+            background: rgba(6, 182, 212, 0.6);
+        }
+
+        /* SVG Build Spinner */
+        .build-spinner {
+            animation: spin 1s linear infinite;
+            width: 14px;
+            height: 14px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
         }
 
         /* Copy fields */
@@ -2229,6 +2270,25 @@ INDEX_HTML = """<!DOCTYPE html>
             }
         }
 
+        function colorizeLog(text) {
+            if (!text) return "";
+            const tempDiv = document.createElement("div");
+            tempDiv.innerText = text;
+            const escaped = tempDiv.innerHTML;
+            
+            return escaped.split("\n").map(line => {
+                const lineLower = line.toLowerCase();
+                if (line.startsWith("❌") || lineLower.includes("failed") || lineLower.includes("exception") || lineLower.includes("error")) {
+                    return `<span style="color: var(--error); font-weight: 600;">${line}</span>`;
+                } else if (line.startsWith("✅") || lineLower.includes("success") || lineLower.includes("completed successfully") || line.startsWith("--- Build succeeded")) {
+                    return `<span style="color: var(--success); font-weight: 600;">${line}</span>`;
+                } else if (line.startsWith("Command:") || line.startsWith("Directory:") || line.startsWith("--- Build started")) {
+                    return `<span style="color: var(--accent-cyan); font-weight: 500;">${line}</span>`;
+                }
+                return line;
+            }).join("\n");
+        }
+
         function triggerBuild() {
             const mod = state.selectedRepo.metadata.modules[state.selectedModuleIdx];
             if (!mod || !mod.buildScript) return;
@@ -2236,12 +2296,14 @@ INDEX_HTML = """<!DOCTYPE html>
             const consoleOutput = document.getElementById("build-terminal-output");
             const badge = document.getElementById("build-status-badge");
             const btn = document.getElementById("btn-run-build");
+            const terminalPanel = document.querySelector(".terminal-panel");
             
             btn.disabled = true;
+            if (terminalPanel) terminalPanel.classList.add("active-build");
             badge.style.display = "inline-flex";
             badge.className = "badge badge-cyan";
-            badge.innerText = "Running...";
-            consoleOutput.innerText = `Spawning build process in background...\nCommand: ${mod.buildScript}\n\n`;
+            badge.innerHTML = `<svg class="build-spinner" viewBox="0 0 50 50" style="margin-right: 6px;"><circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="80, 200" stroke-linecap="round"></circle></svg> Running...`;
+            consoleOutput.innerHTML = colorizeLog(`Spawning build process in background...\nCommand: ${mod.buildScript}\n\n`);
 
             fetch('/api/build', {
                 method: 'POST',
@@ -2257,17 +2319,19 @@ INDEX_HTML = """<!DOCTYPE html>
                     state.activeBuildId = data.build_id;
                     startBuildLogPolling();
                 } else {
-                    consoleOutput.innerText += `❌ Failed to trigger build: ${data.error}`;
+                    consoleOutput.innerHTML += colorizeLog(`❌ Failed to trigger build: ${data.error}`);
                     badge.className = "badge badge-error";
-                    badge.innerText = "Error";
+                    badge.innerHTML = "❌ Error";
                     btn.disabled = false;
+                    if (terminalPanel) terminalPanel.classList.remove("active-build");
                 }
             })
             .catch(err => {
-                consoleOutput.innerText += `❌ Connection error triggering build: ${err}`;
+                consoleOutput.innerHTML += colorizeLog(`❌ Connection error triggering build: ${err}`);
                 badge.className = "badge badge-error";
-                badge.innerText = "Failed";
+                badge.innerHTML = "❌ Failed";
                 btn.disabled = false;
+                if (terminalPanel) terminalPanel.classList.remove("active-build");
             });
         }
 
@@ -2277,28 +2341,30 @@ INDEX_HTML = """<!DOCTYPE html>
             const consoleOutput = document.getElementById("build-terminal-output");
             const badge = document.getElementById("build-status-badge");
             const btn = document.getElementById("btn-run-build");
+            const terminalPanel = document.querySelector(".terminal-panel");
 
             state.activeBuildInterval = setInterval(() => {
                 fetch(`/api/build-status?build_id=${state.activeBuildId}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data.success) {
-                            consoleOutput.innerText = data.log;
+                            consoleOutput.innerHTML = colorizeLog(data.log);
                             consoleOutput.scrollTop = consoleOutput.scrollHeight;
 
                             if (data.status !== "running") {
                                 clearInterval(state.activeBuildInterval);
                                 btn.disabled = false;
+                                if (terminalPanel) terminalPanel.classList.remove("active-build");
                                 
                                 if (data.status === "success") {
                                     badge.className = "badge badge-success";
-                                    badge.innerText = "Success";
+                                    badge.innerHTML = "✅ Success";
                                     
                                     // Refresh assets
                                     fetchRepoAssets();
                                 } else {
                                     badge.className = "badge badge-error";
-                                    badge.innerText = "Failed";
+                                    badge.innerHTML = "❌ Failed";
                                 }
                             }
                         }
