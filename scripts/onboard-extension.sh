@@ -377,6 +377,38 @@ If you have any questions or feedback regarding this policy, please open a GitHu
 with open(os.path.join(target_dir, "PRIVACY.md"), "w") as f:
     f.write(privacy_content.strip() + "\n")
 print("  ✅ Generated PRIVACY.md (standard privacy policy)")
+
+# Create app-metadata.json
+metadata_content = {
+    "appName": ext_name,
+    "appType": "chrome-extension",
+    "repoName": os.path.basename(os.path.abspath(target_dir)),
+    "description": ext_desc,
+    "modules": [
+        {
+            "name": "Chrome Extension",
+            "type": "chrome-extension",
+            "path": ext_dir,
+            "status": "draft",
+            "storeId": "your-extension-id-here",
+            "storeUrl": "https://chromewebstore.google.com/detail/your-app/your-extension-id-here",
+            "developerConsoleUrl": "https://chrome.google.com/webstore/devconsole/your-extension-id-here",
+            "buildScript": "npm run build",
+            "artifactPath": "initial-package.zip",
+            "cwsListing": {
+                "shortDescription": ext_desc[:130] if ext_desc else "Short description here.",
+                "detailedDescription": ext_desc or "Detailed description here.",
+                "category": "productivity",
+                "singlePurpose": ext_desc[:70] if ext_desc else "Single purpose here.",
+                "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(os.path.abspath(target_dir))}/privacy.html"
+            }
+        }
+    ]
+}
+
+with open(os.path.join(target_dir, "app-metadata.json"), "w") as f:
+    json.dump(metadata_content, f, indent=2)
+print("  ✅ Generated app-metadata.json (central app registry standard)")
 EOF
 
 # --- 3. Generate Local GitHub Workflow File ---

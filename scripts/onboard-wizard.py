@@ -8,6 +8,10 @@ import json
 import webbrowser
 import subprocess
 import re
+import threading
+import uuid
+import glob
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Global configurations
@@ -18,6 +22,7 @@ SERVER_PORT = 3000
 SERVER_CLIENT_ID = None
 SERVER_CLIENT_SECRET = None
 OAUTH_STATE = {"status": "idle", "refresh_token": None, "error": None}
+ACTIVE_BUILDS = {}
 
 class WebConsoleHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -69,24 +74,22 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                         "error": "Missing client credentials in session. Please start authorization from the web console again."
                     }
                     self.serve_oauth_feedback(False, OAUTH_STATE["error"])
-                    return
-
-                # Exchange code for Refresh Token
-                refresh_token = self.exchange_code(SERVER_CLIENT_ID, SERVER_CLIENT_SECRET, code)
-                if refresh_token:
-                    OAUTH_STATE = {
-                        "status": "success",
-                        "refresh_token": refresh_token,
-                        "error": None
-                    }
-                    self.serve_oauth_feedback(True, "Access Token and Refresh Token captured successfully!")
                 else:
-                    OAUTH_STATE = {
-                        "status": "error",
-                        "refresh_token": None,
-                        "error": "Failed to exchange authorization code for tokens. Verify your Client ID/Secret."
-                    }
-                    self.serve_oauth_feedback(False, OAUTH_STATE["error"])
+                    refresh_token = self.exchange_code(SERVER_CLIENT_ID, SERVER_CLIENT_SECRET, code)
+                    if refresh_token:
+                        OAUTH_STATE = {
+                            "status": "success",
+                            "refresh_token": refresh_token,
+                            "error": None
+                        }
+                        self.serve_oauth_feedback(True, "Access Token and Refresh Token captured successfully!")
+                    else:
+                        OAUTH_STATE = {
+                            "status": "error",
+                            "refresh_token": None,
+                            "error": "Failed to exchange authorization code for tokens. Verify your Client ID/Secret."
+                        }
+                        self.serve_oauth_feedback(False, OAUTH_STATE["error"])
             else:
                 OAUTH_STATE = {
                     "status": "error",
@@ -115,6 +118,77 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
         # API: Poll OAuth State
         if path == "/api/oauth-status":
             self.send_json_response(OAUTH_STATE)
+            return
+
+        # API: Get CI/CD runs
+        if path == "/api/cicd-status":
+            params = urllib.parse.parse_qs(parsed_url.query)
+            repo_path = params.get('path', [None])[0]
+            if not repo_path or not os.path.exists(repo_path):
+                self.send_json_response({"success": False, "error": "Invalid repository path."}, status=400)
+                return
+            runs = self.get_cicd_status_internal(repo_path)
+            self.send_json_response({"success": True, "runs": runs})
+            return
+
+        # API: Get Build Status
+        if path == "/api/build-status":
+            params = urllib.parse.parse_qs(parsed_url.query)
+            build_id = params.get('build_id', [None])[0]
+            if not build_id or build_id not in ACTIVE_BUILDS:
+                self.send_json_response({"success": False, "error": "Build not found."}, status=404)
+                return
+            build_info = ACTIVE_BUILDS[build_id]
+            log_content = ""
+            if os.path.exists(build_info["log_file"]):
+                try:
+                    with open(build_info["log_file"], "r") as f:
+                        log_content = f.read()
+                except Exception:
+                    pass
+            self.send_json_response({
+                "success": True,
+                "status": build_info["status"],
+                "log": log_content
+            })
+            return
+
+        # API: Get Local Assets
+        if path == "/api/assets":
+            params = urllib.parse.parse_qs(parsed_url.query)
+            repo_path = params.get('path', [None])[0]
+            if not repo_path or not os.path.exists(repo_path):
+                self.send_json_response({"success": False, "error": "Invalid repository path."}, status=400)
+                return
+            assets = self.find_built_assets_internal(repo_path)
+            self.send_json_response({"success": True, "assets": assets})
+            return
+
+        # API: Download Asset File
+        if path == "/api/download":
+            params = urllib.parse.parse_qs(parsed_url.query)
+            file_path = params.get('path', [None])[0]
+            if not file_path or not os.path.exists(file_path):
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"File not found")
+                return
+            
+            # Simple security check to make sure it's inside git-personal folder
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            abs_file_path = os.path.abspath(file_path)
+            if not abs_file_path.startswith(base_dir):
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"Forbidden access")
+                return
+                
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Disposition', f'attachment; filename="{os.path.basename(abs_file_path)}"')
+            self.end_headers()
+            with open(abs_file_path, 'rb') as f:
+                self.wfile.write(f.read())
             return
 
         # 404 Not Found
@@ -162,7 +236,6 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 "prompt=consent"
             )
             
-            # Open browser tab automatically
             webbrowser.open(auth_url)
             self.send_json_response({"success": True, "auth_url": auth_url})
             return
@@ -175,7 +248,6 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 return
 
             try:
-                # Execute onboarding script
                 res = subprocess.run(
                     ["bash", "./scripts/onboard-extension.sh", repo_path],
                     capture_output=True,
@@ -216,7 +288,6 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 return
 
             try:
-                # Set secrets inside repository using gh CLI
                 subprocess.run(["gh", "secret", "set", "CHROME_CLIENT_ID", "--body", client_id], cwd=repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
                 subprocess.run(["gh", "secret", "set", "CHROME_CLIENT_SECRET", "--body", client_secret], cwd=repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
                 subprocess.run(["gh", "secret", "set", "CHROME_EXTENSION_ID", "--body", extension_id], cwd=repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -228,6 +299,59 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                     "success": False,
                     "error": e.stderr.decode('utf-8').strip() if e.stderr else str(e)
                 }, status=500)
+            return
+
+        # API: Initialize Metadata JSON
+        if path == "/api/init-metadata":
+            repo_path = req_data.get("path")
+            app_type = req_data.get("type")
+            ext_dir = req_data.get("ext_dir", ".")
+            
+            if not repo_path or not os.path.exists(repo_path):
+                self.send_json_response({"success": False, "error": "Invalid repository path."}, status=400)
+                return
+                
+            try:
+                template = self.generate_metadata_template_internal(repo_path, app_type, ext_dir)
+                meta_file = os.path.join(repo_path, "app-metadata.json")
+                with open(meta_file, "w") as f:
+                    json.dump(template, f, indent=2)
+                    
+                self.send_json_response({"success": True, "metadata": template})
+            except Exception as e:
+                self.send_json_response({"success": False, "error": str(e)}, status=500)
+            return
+
+        # API: Save Metadata JSON
+        if path == "/api/save-metadata":
+            repo_path = req_data.get("path")
+            metadata = req_data.get("metadata")
+            
+            if not repo_path or not os.path.exists(repo_path) or not metadata:
+                self.send_json_response({"success": False, "error": "Invalid parameters."}, status=400)
+                return
+                
+            try:
+                meta_file = os.path.join(repo_path, "app-metadata.json")
+                with open(meta_file, "w") as f:
+                    json.dump(metadata, f, indent=2)
+                self.send_json_response({"success": True})
+            except Exception as e:
+                self.send_json_response({"success": False, "error": str(e)}, status=500)
+            return
+
+        # API: Trigger Local Build Command
+        if path == "/api/build":
+            repo_path = req_data.get("path")
+            build_script = req_data.get("build_script")
+            
+            if not repo_path or not os.path.exists(repo_path) or not build_script:
+                self.send_json_response({"success": False, "error": "Invalid parameters."}, status=400)
+                return
+                
+            build_id = str(uuid.uuid4())[:8]
+            self.run_build_async_internal(repo_path, build_script, build_id)
+            self.send_json_response({"success": True, "build_id": build_id})
             return
 
         # 404 Not Found
@@ -251,11 +375,10 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
             with urllib.request.urlopen(req) as response:
                 res_data = json.loads(response.read().decode('utf-8'))
                 return res_data.get('refresh_token')
-        except Exception as e:
+        except Exception:
             return None
 
     def get_local_repos(self):
-        # Scan parent folder of workflows repository (which is git-personal)
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         repos = []
         
@@ -267,28 +390,61 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
             if not os.path.isdir(path) or name.startswith('.'):
                 continue
                 
-            # Detect extension directories
+            is_git = os.path.exists(os.path.join(path, ".git"))
+            if not is_git:
+                continue
+                
+            # Detect existing workflows
+            wf_exists = os.path.exists(os.path.join(path, ".github", "workflows", "ci-cd.yml"))
+            
+            # Detect metadata
+            meta_path = os.path.join(path, "app-metadata.json")
+            if not os.path.exists(meta_path):
+                meta_path = os.path.join(path, ".app-metadata.json")
+                
+            metadata = None
+            metadata_exists = False
+            if os.path.exists(meta_path):
+                try:
+                    with open(meta_path, "r") as f:
+                        metadata = json.load(f)
+                    metadata_exists = True
+                except Exception:
+                    pass
+            
+            # Fallback type inference
+            inferred_type = "unknown"
             ext_dir = None
+            
             if os.path.exists(os.path.join(path, "manifest.json")):
+                inferred_type = "chrome-extension"
                 ext_dir = "."
             elif os.path.exists(os.path.join(path, "extension", "manifest.json")):
+                inferred_type = "chrome-extension"
                 ext_dir = "extension"
             elif os.path.exists(os.path.join(path, "chrome-extension", "manifest.json")):
+                inferred_type = "chrome-extension"
                 ext_dir = "chrome-extension"
+            elif os.path.exists(os.path.join(path, "pubspec.yaml")):
+                inferred_type = "flutter-app"
+            elif os.path.exists(os.path.join(path, "app", "build.gradle")) or os.path.exists(os.path.join(path, "build.gradle.kts")):
+                inferred_type = "android-app"
                 
-            is_git = os.path.exists(os.path.join(path, ".git"))
+            app_type = metadata.get("appType", inferred_type) if metadata else inferred_type
+            app_name = metadata.get("appName", name) if metadata else name
             
-            if ext_dir is not None or is_git:
-                # Check for existing workflow
-                wf_exists = os.path.exists(os.path.join(path, ".github", "workflows", "ci-cd.yml"))
-                repos.append({
-                    "name": name,
-                    "path": path,
-                    "is_extension": ext_dir is not None,
-                    "ext_dir": ext_dir or "Not Detected",
-                    "is_git": is_git,
-                    "workflow_exists": wf_exists
-                })
+            repos.append({
+                "name": name,
+                "appName": app_name,
+                "path": path,
+                "appType": app_type,
+                "inferredType": inferred_type,
+                "ext_dir": ext_dir or ".",
+                "is_git": is_git,
+                "workflow_exists": wf_exists,
+                "metadata_exists": metadata_exists,
+                "metadata": metadata
+            })
         return repos
 
     def check_gh_status(self):
@@ -320,6 +476,205 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 json.dump({"client_id": client_id, "client_secret": client_secret}, f, indent=2)
         except Exception:
             pass
+
+    def get_cicd_status_internal(self, repo_path):
+        try:
+            res = subprocess.run(
+                ["gh", "run", "list", "--limit", "5", "--json", "name,status,conclusion,url,createdAt"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True
+            )
+            if res.returncode == 0:
+                return json.loads(res.stdout)
+            else:
+                return []
+        except Exception:
+            return []
+
+    def run_build_async_internal(self, repo_path, build_script, build_id):
+        global ACTIVE_BUILDS
+        log_file_path = os.path.join(repo_path, f".build-{build_id}.log")
+        ACTIVE_BUILDS[build_id] = {
+            "status": "running",
+            "log_file": log_file_path,
+            "script": build_script,
+            "repo_path": repo_path,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        def thread_target():
+            try:
+                with open(log_file_path, "w") as log_f:
+                    log_f.write(f"--- Build started at {datetime.now()} ---\n")
+                    log_f.write(f"Directory: {repo_path}\n")
+                    log_f.write(f"Command: {build_script}\n\n")
+                    log_f.flush()
+                    
+                    proc = subprocess.Popen(
+                        build_script,
+                        shell=True,
+                        cwd=repo_path,
+                        stdout=log_f,
+                        stderr=subprocess.STDOUT,
+                        text=True
+                    )
+                    ACTIVE_BUILDS[build_id]["process"] = proc
+                    proc.wait()
+                    
+                    if proc.returncode == 0:
+                        ACTIVE_BUILDS[build_id]["status"] = "success"
+                    else:
+                        ACTIVE_BUILDS[build_id]["status"] = "failed"
+            except Exception as e:
+                ACTIVE_BUILDS[build_id]["status"] = "failed"
+                try:
+                    with open(log_file_path, "a") as log_f:
+                        log_f.write(f"\n❌ Exception occurred while running build: {str(e)}\n")
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=thread_target)
+        t.daemon = True
+        t.start()
+
+    def find_built_assets_internal(self, repo_path):
+        assets = []
+        patterns = [
+            "*.zip",
+            "initial-package.zip",
+            "**/*.zip",
+            "**/*.apk",
+            "**/*.aab"
+        ]
+        found_files = []
+        for p in patterns:
+            matches = glob.glob(os.path.join(repo_path, p), recursive=True)
+            for m in matches:
+                if any(x in m for x in ["node_modules", ".git", ".gradle", ".idea", "build/kotlin", "build/tmp"]):
+                    continue
+                if m not in found_files and os.path.isfile(m):
+                    found_files.append(m)
+                    
+        for f in found_files:
+            rel_path = os.path.relpath(f, repo_path)
+            size = os.path.getsize(f)
+            assets.append({
+                "name": os.path.basename(f),
+                "rel_path": rel_path,
+                "abs_path": f,
+                "size_mb": round(size / (1024 * 1024), 2)
+            })
+        return assets
+
+    def generate_metadata_template_internal(self, repo_path, expected_type, ext_dir="."):
+        appName = os.path.basename(repo_path)
+        description = "A premium application."
+        version = "1.0.0"
+        
+        if expected_type == "chrome-extension":
+            manifest_path = os.path.join(repo_path, ext_dir, "manifest.json")
+            if os.path.exists(manifest_path):
+                try:
+                    with open(manifest_path, "r") as f:
+                        manifest = json.load(f)
+                    appName = manifest.get("name", appName)
+                    description = manifest.get("description", description)
+                    version = manifest.get("version", version)
+                except Exception:
+                    pass
+                    
+            return {
+                "appName": appName,
+                "appType": "chrome-extension",
+                "repoName": os.path.basename(repo_path),
+                "description": description,
+                "modules": [
+                    {
+                      "name": "Chrome Extension",
+                      "type": "chrome-extension",
+                      "path": ext_dir,
+                      "status": "draft",
+                      "storeId": "",
+                      "storeUrl": "",
+                      "developerConsoleUrl": "https://chrome.google.com/webstore/devconsole",
+                      "buildScript": "zip -r initial-package.zip " + ext_dir,
+                      "artifactPath": "initial-package.zip",
+                      "cwsListing": {
+                        "shortDescription": description[:130] if description else "Short description here.",
+                        "detailedDescription": description or "Detailed description here.",
+                        "category": "productivity",
+                        "singlePurpose": description[:70] if description else "Single purpose here.",
+                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
+                      }
+                    }
+                ]
+            }
+        elif expected_type == "flutter-app":
+            pubspec_path = os.path.join(repo_path, "pubspec.yaml")
+            if os.path.exists(pubspec_path):
+                try:
+                    with open(pubspec_path, "r") as f:
+                        for line in f:
+                            if line.startswith("name:"):
+                                appName = line.split(":")[1].strip()
+                            elif line.startswith("description:"):
+                                description = line.split(":")[1].strip()
+                except Exception:
+                    pass
+            return {
+                "appName": appName,
+                "appType": "flutter-app",
+                "repoName": os.path.basename(repo_path),
+                "description": description,
+                "modules": [
+                    {
+                      "name": "Flutter Android App",
+                      "type": "flutter-app",
+                      "path": ".",
+                      "status": "draft",
+                      "storeId": f"com.ravitejakamalapuram.{appName.lower()}",
+                      "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{appName.lower()}",
+                      "developerConsoleUrl": "https://play.google.com/console/u/0/developers",
+                      "buildScript": "flutter build appbundle",
+                      "artifactPath": "build/app/outputs/bundle/release/app-release.aab",
+                      "playStoreListing": {
+                        "title": appName,
+                        "shortDescription": description[:80] if description else "Short description here.",
+                        "fullDescription": description or "Full description here.",
+                        "category": "utilities",
+                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
+                      }
+                    }
+                ]
+            }
+        else: # android-app
+            return {
+                "appName": appName,
+                "appType": "android-app",
+                "repoName": os.path.basename(repo_path),
+                "description": "Android application.",
+                "modules": [
+                    {
+                      "name": "Android Application",
+                      "type": "android-app",
+                      "path": ".",
+                      "status": "draft",
+                      "storeId": f"com.ravitejakamalapuram.{appName.lower()}",
+                      "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{appName.lower()}",
+                      "developerConsoleUrl": "https://play.google.com/console/u/0/developers",
+                      "buildScript": "./gradlew assembleRelease",
+                      "artifactPath": "app/build/outputs/apk/release/app-release.apk",
+                      "playStoreListing": {
+                        "title": appName,
+                        "shortDescription": "Short description here.",
+                        "fullDescription": "Full description here.",
+                        "category": "utilities",
+                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
+                      }
+                    }
+                ]
+            }
 
     def serve_oauth_feedback(self, is_success, message):
         self.send_response(200)
@@ -393,14 +748,18 @@ INDEX_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chrome Extension Onboarding Console</title>
+    <title>Saturn App Console & Registry</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #080b11;
-            --card-bg: rgba(17, 24, 39, 0.7);
-            --card-border: rgba(255, 255, 255, 0.06);
+            --bg-color: #0b0f17;
+            --bg-gradient: radial-gradient(circle at 50% 0%, #1c1d30 0%, #080b11 80%);
+            --card-bg: rgba(22, 27, 38, 0.65);
+            --card-border: rgba(255, 255, 255, 0.07);
             --accent-cyan: #06b6d4;
-            --accent-cyan-hover: #0891b2;
+            --accent-cyan-glow: rgba(6, 182, 212, 0.3);
             --accent-purple: #8b5cf6;
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
@@ -417,8 +776,9 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, var(--bg-color) 0%, #111827 100%);
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-color);
+            background-image: var(--bg-gradient);
             color: var(--text-primary);
             min-height: 100vh;
             display: flex;
@@ -428,19 +788,26 @@ INDEX_HTML = """<!DOCTYPE html>
 
         header {
             border-bottom: 1px solid var(--card-border);
-            padding: 20px 40px;
+            padding: 16px 40px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(8, 11, 17, 0.8);
-            backdrop-filter: blur(10px);
-            z-index: 10;
+            background: rgba(8, 11, 17, 0.7);
+            backdrop-filter: blur(16px);
             position: sticky;
             top: 0;
+            z-index: 100;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
         .logo {
-            font-size: 20px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 22px;
             font-weight: 800;
             letter-spacing: -0.5px;
             background: linear-gradient(to right, var(--accent-cyan), var(--accent-purple));
@@ -453,12 +820,28 @@ INDEX_HTML = """<!DOCTYPE html>
 
         .logo::before {
             content: "🪐";
-            font-size: 22px;
+            font-size: 24px;
             -webkit-text-fill-color: initial;
         }
 
+        .logo-version {
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--card-border);
+            padding: 2px 8px;
+            border-radius: 12px;
+            color: var(--text-secondary);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
         .gh-badge {
-            background: rgba(30, 41, 59, 0.8);
+            background: rgba(30, 41, 59, 0.4);
             border: 1px solid var(--card-border);
             border-radius: 20px;
             padding: 6px 14px;
@@ -467,6 +850,7 @@ INDEX_HTML = """<!DOCTYPE html>
             align-items: center;
             gap: 8px;
             font-weight: 500;
+            color: var(--text-secondary);
         }
 
         .status-dot {
@@ -478,267 +862,255 @@ INDEX_HTML = """<!DOCTYPE html>
 
         .status-dot.success { background: var(--success); box-shadow: 0 0 8px var(--success); }
         .status-dot.error { background: var(--error); box-shadow: 0 0 8px var(--error); }
+        .status-dot.warning { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            background: rgba(30, 41, 59, 0.2);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+            margin: 24px auto 0 auto;
+            width: fit-content;
+        }
+
+        .nav-tab {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            transition: all 0.2s;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-tab.active {
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--accent-cyan);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
 
         .container {
-            max-width: 1100px;
-            margin: 40px auto;
+            max-width: 1240px;
+            margin: 20px auto 40px auto;
             width: 100%;
             padding: 0 20px;
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 30px;
+            gap: 24px;
         }
 
-        .stepper {
-            display: flex;
-            justify-content: space-between;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 16px 24px;
-            gap: 16px;
-        }
-
-        .step {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: var(--text-muted);
-            font-size: 14px;
-            font-weight: 600;
-            position: relative;
-            flex: 1;
-            justify-content: center;
-        }
-
-        .step-number {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--card-border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            color: var(--text-muted);
-            transition: all 0.3s;
-        }
-
-        .step.active {
-            color: var(--accent-cyan);
-        }
-
-        .step.active .step-number {
-            background: rgba(6, 182, 212, 0.1);
-            border-color: var(--accent-cyan);
-            color: var(--accent-cyan);
-            box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
-        }
-
-        .step.completed {
-            color: var(--success);
-        }
-
-        .step.completed .step-number {
-            background: rgba(16, 185, 129, 0.1);
-            border-color: var(--success);
-            color: var(--success);
-        }
-
-        .step:not(:last-child)::after {
-            content: "";
-            position: absolute;
-            right: -25px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 16px;
-            height: 1px;
-            background: var(--card-border);
-        }
-
-        .card {
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s;
+        /* Tab Contents */
+        .tab-content {
             display: none;
-            flex-direction: column;
-            gap: 20px;
+            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .card.active {
+        .tab-content.active {
             display: flex;
-            animation: fadeIn 0.4s ease-out;
+            flex-direction: column;
+            gap: 24px;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
+            from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        h2 {
-            font-size: 22px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .subtitle {
-            font-size: 14px;
-            color: var(--text-secondary);
-            margin-top: -10px;
-            line-height: 1.5;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        label {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        input, select {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid var(--card-border);
-            padding: 12px 16px;
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 14px;
-            outline: none;
-            transition: all 0.2s;
-            width: 100%;
-        }
-
-        input:focus, select:focus {
-            border-color: var(--accent-cyan);
-            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
-        }
-
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 10px;
-            cursor: pointer;
-            user-select: none;
-            font-size: 14px;
-            color: var(--text-secondary);
-        }
-
-        .checkbox-group input {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-
-        .repo-list {
+        /* Dashboard Overview Grid */
+        .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 16px;
-            margin-top: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 24px;
         }
 
-        .repo-item {
-            background: rgba(30, 41, 59, 0.3);
+        .app-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
             border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 20px;
-            cursor: pointer;
-            transition: all 0.2s;
+            border-radius: 16px;
+            padding: 24px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 16px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             position: relative;
             overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         }
 
-        .repo-item:hover {
+        .app-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            opacity: 0.7;
+        }
+
+        .app-card:hover {
+            transform: translateY(-4px);
             border-color: rgba(255, 255, 255, 0.15);
-            background: rgba(30, 41, 59, 0.4);
-            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25), 0 0 20px var(--accent-cyan-glow);
         }
 
-        .repo-item.selected {
-            border-color: var(--accent-cyan);
-            background: rgba(6, 182, 212, 0.05);
-            box-shadow: 0 0 15px rgba(6, 182, 212, 0.1);
+        .app-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
         }
 
-        .repo-item:focus-visible {
-            outline: none;
-            border-color: var(--accent-cyan);
-            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
-        }
-
-        .repo-name {
-            font-weight: 700;
-            font-size: 16px;
-        }
-
-        .repo-meta {
-            font-size: 12px;
-            color: var(--text-secondary);
+        .app-title-section {
             display: flex;
             flex-direction: column;
             gap: 4px;
         }
 
-        .badge-small {
-            padding: 3px 8px;
-            border-radius: 12px;
+        .app-card-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .app-card-path {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            word-break: break-all;
+        }
+
+        .badge {
             font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             width: fit-content;
         }
 
-        .badge-cyan { background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan); border: 1px solid rgba(6, 182, 212, 0.2); }
-        .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
-        .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+        .badge-cyan { background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan); border-color: rgba(6, 182, 212, 0.2); }
+        .badge-purple { background: rgba(139, 92, 246, 0.1); color: var(--accent-purple); border-color: rgba(139, 92, 246, 0.2); }
+        .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--success); border-color: rgba(16, 185, 129, 0.2); }
+        .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); border-color: rgba(245, 158, 11, 0.2); }
+        .badge-error { background: rgba(244, 63, 94, 0.1); color: var(--error); border-color: rgba(244, 63, 94, 0.2); }
+
+        .app-description {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            min-height: 40px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .app-card-modules {
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .module-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .module-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+        }
+
+        .cicd-run-status {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 11px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .cicd-run-header {
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+        }
+
+        .cicd-run-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .cicd-name {
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+            max-width: 180px;
+        }
 
         .btn-row {
             display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-            gap: 16px;
+            gap: 12px;
+            margin-top: auto;
         }
 
         .btn {
-            padding: 12px 24px;
+            padding: 10px 16px;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             border: none;
             transition: all 0.2s;
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            gap: 6px;
+            flex: 1;
+            text-decoration: none;
         }
 
         .btn-primary {
             background: linear-gradient(to right, var(--accent-cyan), var(--accent-purple));
             color: white;
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
         }
 
         .btn-primary:hover {
             transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(139, 92, 246, 0.3);
+            box-shadow: 0 6px 16px rgba(139, 92, 246, 0.25);
         }
 
         .btn-secondary {
@@ -752,26 +1124,293 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         .btn:disabled {
-            opacity: 0.5;
+            opacity: 0.4;
             cursor: not-allowed;
             transform: none !important;
             box-shadow: none !important;
         }
 
-        .btn:focus-visible {
-            outline: 2px solid var(--accent-cyan);
-            outline-offset: 2px;
+        /* Split Workspace view */
+        .workspace-layout {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        }
+
+        h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: -10px;
+            line-height: 1.5;
+        }
+
+        .list-items {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .list-item {
+            background: rgba(30, 41, 59, 0.2);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .list-item:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            background: rgba(30, 41, 59, 0.35);
+        }
+
+        .list-item.selected {
+            border-color: var(--accent-cyan);
+            background: rgba(6, 182, 212, 0.05);
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.1);
+        }
+
+        .list-item-title {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .list-item-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Form styling */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input, select, textarea {
+            background: rgba(10, 14, 23, 0.6);
+            border: 1px solid var(--card-border);
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .tab-section {
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .sub-header {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        /* Terminal Console styles */
+        .terminal-panel {
+            background: #04060a;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 8px;
+        }
+
+        .terminal-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .terminal-output {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: #10b981;
+            height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            scroll-behavior: smooth;
+        }
+
+        /* Copy fields */
+        .copy-field {
+            display: flex;
+            gap: 8px;
+            position: relative;
+        }
+
+        .copy-field input, .copy-field textarea {
+            padding-right: 60px;
+        }
+
+        .copy-btn-inline {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--card-border);
+            color: var(--accent-cyan);
+            font-size: 10px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn-inline:hover {
+            background: rgba(6, 182, 212, 0.15);
+        }
+
+        /* Asset list */
+        .asset-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .asset-item {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .asset-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .asset-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .asset-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .download-btn {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .download-btn:hover {
+            background: rgba(16, 185, 129, 0.2);
+        }
+
+        .auth-status-container {
+            background: rgba(30, 41, 59, 0.3);
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
         }
 
         .instructions-panel {
-            background: rgba(15, 23, 42, 0.6);
+            background: rgba(15, 23, 42, 0.5);
             border: 1px solid var(--card-border);
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 20px;
-            font-size: 14px;
+            font-size: 13px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             line-height: 1.6;
         }
 
@@ -787,11 +1426,6 @@ INDEX_HTML = """<!DOCTYPE html>
             color: var(--text-secondary);
         }
 
-        .instructions-panel li::marker {
-            color: var(--accent-cyan);
-            font-weight: bold;
-        }
-
         .instructions-panel a {
             color: var(--accent-cyan);
             text-decoration: none;
@@ -800,307 +1434,355 @@ INDEX_HTML = """<!DOCTYPE html>
         .instructions-panel a:hover {
             text-decoration: underline;
         }
-
-        .terminal-output {
-            background: #04060a;
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            padding: 16px;
-            font-family: "Courier New", Courier, monospace;
-            font-size: 12px;
-            color: #10b981;
-            max-height: 200px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            line-height: 1.5;
-        }
-
-        .alert {
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 500;
-        }
-
-        .alert-info { background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
-        .alert-warning { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.15); color: var(--warning); }
-        .alert-error { background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.15); color: var(--error); }
-
-        .auth-status-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(30, 41, 59, 0.4);
-            border: 1px solid var(--card-border);
-            padding: 20px;
-            border-radius: 12px;
-        }
-
-        .oauth-success-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--success);
-        }
-
-        .spinning {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .confetti-container {
-            text-align: center;
-            padding: 30px 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .success-icon {
-            font-size: 60px;
-            animation: bounce 1s infinite alternate;
-        }
-
-        @keyframes bounce {
-            from { transform: translateY(0); }
-            to { transform: translateY(-8px); }
-        }
-
-        .code-box {
-            background: #04060a;
-            border: 1px solid var(--card-border);
-            padding: 16px;
-            border-radius: 8px;
-            font-family: monospace;
-            text-align: left;
-            width: 100%;
-            position: relative;
-        }
-
-        .copy-btn {
-            position: absolute;
-            right: 12px;
-            top: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--card-border);
-            color: var(--text-secondary);
-            padding: 4px 8px;
-            font-size: 11px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .copy-btn:hover {
-            color: var(--text-primary);
-            background: rgba(255, 255, 255, 0.1);
-        }
     </style>
 </head>
 <body>
     <header>
-        <div class="logo">Chrome Extension Onboarding Console</div>
-        <div class="gh-badge" id="gh-status-badge">
-            <span class="status-dot error"></span> Checking GitHub CLI...
+        <div class="logo-container">
+            <div class="logo">Saturn Console</div>
+            <div class="logo-version">v2.0</div>
+        </div>
+        <div class="header-actions">
+            <div class="gh-badge" id="gh-status-badge">
+                <span class="status-dot warning"></span> Loading GitHub CLI status...
+            </div>
         </div>
     </header>
 
+    <div class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('dashboard')">📊 App Dashboard</button>
+        <button class="nav-tab" id="tab-nav-workspace" onclick="switchTab('workspace')" disabled>🛠️ App Workspace</button>
+        <button class="nav-tab" id="tab-nav-builds" onclick="switchTab('builds')" disabled>📦 Builds & Assets</button>
+        <button class="nav-tab" id="tab-nav-secrets" onclick="switchTab('secrets')" disabled>🔒 Secrets & CI/CD</button>
+    </div>
+
     <div class="container">
-        <!-- Progress Stepper -->
-        <div class="stepper">
-            <div class="step active" id="step-indicator-1">
-                <span class="step-number">1</span>
-                Project Setup
+        <!-- TAB 1: App Dashboard -->
+        <div id="tab-content-dashboard" class="tab-content active">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <h2 style="font-family: 'Outfit'; font-size: 24px;">Central Application Registry</h2>
+                <p style="color: var(--text-secondary); font-size: 14px;">Review and manage deployment details, store listings, and CI/CD status for all your projects.</p>
             </div>
-            <div class="step" id="step-indicator-2">
-                <span class="step-number">2</span>
-                Google Credentials
-            </div>
-            <div class="step" id="step-indicator-3">
-                <span class="step-number">3</span>
-                Store Upload
-            </div>
-            <div class="step" id="step-indicator-4">
-                <span class="step-number">4</span>
-                Authenticate & Publish
-            </div>
-        </div>
-
-        <!-- STEP 1: Select Project -->
-        <div class="card active" id="card-step-1">
-            <h2>Select Project to Onboard</h2>
-            <p class="subtitle">Select the Chrome Extension from your git-personal folder that you want to integrate with centralized CI/CD workflows.</p>
             
-            <div id="gh-cli-warning" class="alert alert-error" style="display: none;">
-                <strong>GitHub CLI Error:</strong> Please authenticate the GitHub CLI locally by running <code>gh auth login</code> before proceeding.
-            </div>
-
-            <div class="form-group">
-                <label>Detected Repositories</label>
-                <div class="repo-list" id="repo-list-container">
-                    <!-- Loaded dynamically -->
-                </div>
-            </div>
-
-            <div id="selected-repo-details" style="display: none;">
-                <div class="alert alert-info">
-                    <span id="onboard-status-text">Ready to onboard: StellarTab</span>
-                </div>
-            </div>
-
-            <div class="btn-row">
-                <div></div>
-                <button class="btn btn-primary" id="btn-to-step-2" disabled>
-                    Proceed to Step 2 &rarr;
-                </button>
+            <div class="dashboard-grid" id="repos-dashboard-grid">
+                <!-- Repos are rendered dynamically here -->
             </div>
         </div>
 
-        <!-- STEP 2: Google Developer Credentials -->
-        <div class="card" id="card-step-2">
-            <h2>Google Cloud API Configuration</h2>
-            <p class="subtitle">Set up authorization credentials in Google Cloud Console. These credentials allow GitHub Actions to safely access the Chrome Web Store API.</p>
+        <!-- TAB 2: Workspace Panel -->
+        <div id="tab-content-workspace" class="tab-content">
+            <div class="workspace-layout">
+                <!-- Sidebar: App Info & Module List -->
+                <div class="panel">
+                    <h2 id="workspace-sidebar-title">Select App</h2>
+                    <p class="panel-subtitle" id="workspace-sidebar-desc">Configure registry metadata details</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <label>Application Modules</label>
+                        <div class="list-items" id="workspace-module-list">
+                            <!-- Modules listed dynamically -->
+                        </div>
+                    </div>
+                    
+                    <div id="init-metadata-banner" style="display: none; flex-direction: column; gap: 12px;">
+                        <span class="badge badge-warning" style="width:100%;">No Metadata Found</span>
+                        <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">This app repository is missing the compliance <code>app-metadata.json</code> file. Click below to initialize it.</p>
+                        <button class="btn btn-primary" onclick="initializeMetadata()">Initialize app-metadata.json</button>
+                    </div>
+                </div>
 
-            <div class="instructions-panel">
-                <strong>How to get Google API Client Credentials:</strong>
-                <ol>
-                    <li>Open the <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a> and create or select a project.</li>
-                    <li>Enable the <strong>Chrome Web Store API</strong> for your project.</li>
-                    <li>Configure the <strong>OAuth Consent Screen</strong> (External user type), and add the scope: <code>https://www.googleapis.com/auth/chromewebstore</code>.</li>
-                    <li>Go to <strong>Credentials</strong> &rarr; <strong>Create Credentials</strong> &rarr; <strong>OAuth client ID</strong>.</li>
-                    <li>Select <strong>Web application</strong> as the Application Type.</li>
-                    <li>Add this exact URL as an <strong>Authorized Redirect URI</strong>: <code style="color:var(--accent-cyan);">http://localhost:3000/oauth-callback</code>.</li>
-                    <li>Click Save and note down your <strong>Client ID</strong> and <strong>Client Secret</strong>.</li>
-                </ol>
-            </div>
+                <!-- Main Content: Registry Metadata Form Editor -->
+                <div class="panel" id="workspace-metadata-panel">
+                    <h2>Application Configuration Standard</h2>
+                    <p class="panel-subtitle">Edit metadata fields to serve as the single source of truth for CI/CD pipelines and manual onboarding</p>
+                    
+                    <div id="save-metadata-success" class="badge badge-success" style="display: none; padding: 10px; width: 100%; justify-content: center; font-size: 12px; margin-bottom: 10px;">
+                        ✓ Metadata saved successfully to app-metadata.json!
+                    </div>
 
-            <div id="step-2-error" class="alert alert-error" style="display: none;" aria-live="polite"></div>
-            <div class="form-group">
-                <label for="input-client-id">OAuth Client ID <span style="color: var(--error);">*</span></label>
-                <input type="text" id="input-client-id" placeholder="Enter your Google OAuth Client ID" aria-required="true">
-            </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="meta-app-name">Application Name</label>
+                            <input type="text" id="meta-app-name" placeholder="e.g. StellarTab">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta-app-type">Application Type</label>
+                            <select id="meta-app-type" onchange="adjustFormFieldsForType()">
+                                <option value="chrome-extension">Chrome Extension</option>
+                                <option value="flutter-app">Flutter App</option>
+                                <option value="android-app">Android App</option>
+                                <option value="multi-module">Multi-Module/Hybrid App</option>
+                            </select>
+                        </div>
+                    </div>
 
-            <div class="form-group">
-                <label for="input-client-secret">OAuth Client Secret <span style="color: var(--error);">*</span></label>
-                <input type="password" id="input-client-secret" placeholder="Enter your Google OAuth Client Secret" aria-required="true">
-            </div>
+                    <div class="form-group">
+                        <label for="meta-app-desc">Application Description</label>
+                        <textarea id="meta-app-desc" placeholder="Write a short description of the application..."></textarea>
+                    </div>
 
-            <div class="checkbox-group">
-                <input type="checkbox" id="checkbox-save-creds" checked>
-                <label for="checkbox-save-creds" style="text-transform:none; cursor:pointer;">Save these credentials locally on this machine for future extensions</label>
-            </div>
+                    <!-- Dynamic Module Fields Section -->
+                    <div class="tab-section" id="meta-module-section">
+                        <h3 class="sub-header" id="meta-module-header">Module Configurations</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="meta-mod-name">Module Name</label>
+                                <input type="text" id="meta-mod-name" placeholder="e.g. Chrome Extension">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-mod-type">Module Type</label>
+                                <select id="meta-mod-type" onchange="toggleListingSchemaFields()">
+                                    <option value="chrome-extension">Chrome Extension</option>
+                                    <option value="android-app">Android App</option>
+                                    <option value="flutter-app">Flutter App</option>
+                                </select>
+                            </div>
+                        </div>
 
-            <div class="btn-row">
-                <button class="btn btn-secondary" onclick="goToStep(1)">&larr; Back</button>
-                <button class="btn btn-primary" id="btn-to-step-3" onclick="validateStep2()">
-                    Save & Proceed &rarr;
-                </button>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="meta-mod-path">Relative Folder Path</label>
+                                <input type="text" id="meta-mod-path" placeholder="e.g. extension or .">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-mod-status">Listing Status</label>
+                                <select id="meta-mod-status" onchange="toggleStoreRequirements()">
+                                    <option value="draft">Draft (Manual Upload Ready)</option>
+                                    <option value="beta">Beta (Testing State)</option>
+                                    <option value="published">Published / Live in Store</option>
+                                    <option value="unpublished">Unpublished</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row" id="store-requirements-row" style="display: none;">
+                            <div class="form-group">
+                                <label for="meta-mod-storeid">Store / Package ID</label>
+                                <input type="text" id="meta-mod-storeid" placeholder="e.g. nkbihfbeogaeaoehlefnkodbefgpgknn">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-mod-storeurl">Public Store URL</label>
+                                <input type="text" id="meta-mod-storeurl" placeholder="https://chromewebstore.google.com/...">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="meta-mod-buildscript">Build Script Command</label>
+                                <input type="text" id="meta-mod-buildscript" placeholder="e.g. npm run build or flutter build apk">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-mod-artifact">Artifact Path (Target ZIP/APK/AAB)</label>
+                                <input type="text" id="meta-mod-artifact" placeholder="e.g. initial-package.zip or build/app/outputs/bundle/release/app-release.aab">
+                            </div>
+                        </div>
+
+                        <!-- Chrome Web Store Listing Fields -->
+                        <div id="cws-listing-fields" style="display: flex; flex-direction: column; gap: 16px;">
+                            <h4 class="sub-header" style="font-size: 11px; margin-top: 10px;">Store Listing Details (Chrome Web Store)</h4>
+                            <div class="form-group">
+                                <label for="meta-cws-short">Short Description (max 130 chars)</label>
+                                <input type="text" id="meta-cws-short" placeholder="A brief user-facing description...">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-cws-long">Detailed Description</label>
+                                <textarea id="meta-cws-long" placeholder="Describe the extension features, how to use it..."></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="meta-cws-purpose">Single Purpose (max 70 chars)</label>
+                                    <input type="text" id="meta-cws-purpose" placeholder="Define the primary action of this extension...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="meta-cws-category">Category</label>
+                                    <select id="meta-cws-category">
+                                        <option value="productivity">Productivity</option>
+                                        <option value="developer">Developer Tools</option>
+                                        <option value="search">Search Tools</option>
+                                        <option value="fun">Fun & Games</option>
+                                        <option value="accessibility">Accessibility</option>
+                                        <option value="social">Social & Communication</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-cws-privacy">Privacy Policy URL</label>
+                                <input type="text" id="meta-cws-privacy" placeholder="https://...">
+                            </div>
+                        </div>
+
+                        <!-- Google Play Store Listing Fields -->
+                        <div id="play-listing-fields" style="display: none; flex-direction: column; gap: 16px;">
+                            <h4 class="sub-header" style="font-size: 11px; margin-top: 10px;">Store Listing Details (Google Play Store)</h4>
+                            <div class="form-group">
+                                <label for="meta-play-title">Play Store App Title</label>
+                                <input type="text" id="meta-play-title" placeholder="User-facing app name...">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-play-short">Short Description (max 80 chars)</label>
+                                <input type="text" id="meta-play-short" placeholder="Summary of what the app does...">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-play-full">Full Description</label>
+                                <textarea id="meta-play-full" placeholder="Detailed product marketing description..."></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="meta-play-category">Category</label>
+                                    <input type="text" id="meta-play-category" placeholder="e.g. utilities, finance, health">
+                                </div>
+                                <div class="form-group">
+                                    <label for="meta-play-privacy">Privacy Policy URL</label>
+                                    <input type="text" id="meta-play-privacy" placeholder="https://...">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="btn-row" style="margin-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 20px;">
+                        <div></div>
+                        <button class="btn btn-primary" onclick="saveMetadataChanges()" style="max-width: 200px;">Save Metadata standard</button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- STEP 3: Store Draft Creation & Upload -->
-        <div class="card" id="card-step-3">
-            <h2>Create Draft Listing & Initial Upload</h2>
-            <p class="subtitle">Upload the initial package to the Developer Console. This registers your listing and assigns you an Extension ID.</p>
+        <!-- TAB 3: Builds & Assets Console -->
+        <div id="tab-content-builds" class="tab-content">
+            <div class="workspace-layout" style="grid-template-columns: 1fr 400px;">
+                <!-- Build Runner & Terminal -->
+                <div class="panel">
+                    <h2>Execute App Build</h2>
+                    <p class="panel-subtitle">Trigger the app-defined build script locally. Standard output is redirected to the log viewer below.</p>
+                    
+                    <div style="background: rgba(30, 41, 59, 0.2); border: 1px solid var(--card-border); border-radius: 10px; padding: 20px; display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <div id="build-module-name" style="font-weight: 700; font-size: 16px;">Chrome Extension</div>
+                            <div id="build-script-command" style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Command: npm run build</div>
+                        </div>
+                        <button class="btn btn-primary" id="btn-run-build" onclick="triggerBuild()">Execute Build</button>
+                    </div>
 
-            <div class="instructions-panel">
-                <strong>Why is this step manual?</strong>
-                <p style="color:var(--text-secondary); margin-bottom: 8px;">Google Web Store API does not support programmatic creation of new items. A developer must create the first listing manually via the web interface.</p>
-                <ol>
-                    <li>Click the button below to bundle your extension code into a deployable ZIP.</li>
-                    <li>Go to the <a href="https://chrome.google.com/webstore/devconsole" target="_blank">Chrome Web Store Developer Console</a>.</li>
-                    <li>Click <strong>Add new item</strong> and drag-and-drop the generated <strong>initial-package.zip</strong>.</li>
-                    <li>Save the draft, and copy your assigned <strong>Extension ID</strong> from the dashboard dashboard URL or listing.</li>
-                </ol>
-            </div>
-
-            <div class="btn-row" style="margin-top: 10px; justify-content: center;">
-                <button class="btn btn-primary" id="btn-onboard-action" onclick="runOnboardScript()">
-                    📦 Generate Onboarding ZIP & Workflows
-                </button>
-            </div>
-
-            <div id="onboard-logs-container" style="display: none;">
-                <label>Onboarding Log Output</label>
-                <div class="terminal-output" id="onboard-terminal-logs">Running onboarding scripts...</div>
-            </div>
-
-            <div id="step-3-error" class="alert alert-error" style="display: none;" aria-live="polite"></div>
-            <div class="form-group" id="extension-id-group" style="display: none; margin-top: 10px;">
-                <label for="input-extension-id">Chrome Extension ID (or listing URL) <span style="color: var(--error);">*</span></label>
-                <input type="text" id="input-extension-id" placeholder="e.g., nkbihfbeogaeaoehlefnkodbefgpgknn or complete devconsole URL" oninput="parseExtIdInput()" aria-required="true">
-                <div id="ext-id-success-badge" class="alert alert-info" style="display: none; padding: 6px 12px; margin-top: 6px;">
-                    🎯 Parsed Extension ID: <strong id="parsed-id-display"></strong>
+                    <div class="terminal-panel">
+                        <div class="terminal-header">
+                            <span class="terminal-title">Build Log Output</span>
+                            <span class="badge badge-cyan" id="build-status-badge" style="display: none;">Idle</span>
+                        </div>
+                        <div class="terminal-output" id="build-terminal-output">Ready to execute build command...</div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="btn-row">
-                <button class="btn btn-secondary" onclick="goToStep(2)">&larr; Back</button>
-                <button class="btn btn-primary" id="btn-to-step-4" onclick="validateStep3()" disabled>
-                    Proceed &rarr;
-                </button>
+                <!-- Asset Browser -->
+                <div class="panel">
+                    <h2>Local Assets Directory</h2>
+                    <p class="panel-subtitle">Download the compiled ZIP, APK, or AAB files generated locally for upload to the developer console.</p>
+                    
+                    <div class="asset-list" id="workspace-asset-list">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- STEP 4: Google OAuth & Secret Provisioning -->
-        <div class="card" id="card-step-4">
-            <h2>OAuth Authorization & GitHub Provisioning</h2>
-            <p class="subtitle">Log in to Google to generate a long-lived API Refresh Token and automatically upload secrets to GitHub.</p>
-
-            <div class="auth-status-container" id="oauth-status-panel">
-                <div>
-                    <h3 style="font-size: 16px; margin-bottom: 4px;">Google API Authorization</h3>
-                    <p style="font-size: 13px; color: var(--text-secondary);" id="oauth-status-text">Click authorize to authenticate your account.</p>
-                </div>
-                <button class="btn btn-primary" id="btn-oauth-trigger" onclick="triggerGoogleOAuth()">
-                    🔒 Authorize with Google
-                </button>
-            </div>
-
-            <div id="provision-status-alert" class="alert" style="display: none;">
-                Setting up secrets...
-            </div>
-
-            <div class="btn-row" id="final-btn-row">
-                <button class="btn btn-secondary" id="btn-final-back" onclick="goToStep(3)">&larr; Back</button>
-                <button class="btn btn-primary" id="btn-provision-secrets" onclick="provisionSecrets()" disabled>
-                    🚀 Set Secrets in GitHub Repository
-                </button>
-            </div>
-
-            <!-- SUCCESS PANEL -->
-            <div class="confetti-container" id="success-panel" style="display: none;">
-                <span class="success-icon">🎉</span>
-                <h2 style="color: var(--success); text-align: center;">Onboarding Fully Completed!</h2>
-                <p style="color: var(--text-secondary); max-width: 600px;">GitHub Secrets are successfully provisioned. StellarTab is now linked with your centralized reusable workflows. Any push to the main branch will build, test, and auto-deploy updates directly to the Chrome Web Store.</p>
+        <!-- TAB 4: Secrets & CI/CD Onboarding -->
+        <div id="tab-content-secrets" class="tab-content">
+            <div class="panel">
+                <h2>Store Onboarding Copy-Paste Listing Guide</h2>
+                <p class="panel-subtitle">Step-by-step instructions and listing parameters copyable to speed up initial manual store submission</p>
                 
-                <div class="code-box">
-                    <button id="copy-btn" class="copy-btn" aria-live="polite" onclick="copyGitCommands()">Copy</button>
-                    <span style="color: var(--text-muted);"># Push your changes to Git:</span><br>
-                    <span style="color: var(--accent-cyan);">git add .</span><br>
-                    <span style="color: var(--accent-cyan);">git commit -m "Onboard extension to centralized workflows"</span><br>
-                    <span style="color: var(--accent-cyan);">git push origin main</span>
+                <div class="workspace-layout" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+                    <div class="instructions-panel">
+                        <strong>Developer Console Onboarding Guide:</strong>
+                        <ol id="onboarding-guide-steps">
+                            <!-- Populated dynamically -->
+                        </ol>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        <h3 class="sub-header" style="font-size: 12px;">Store Listing Copyable Assets</h3>
+                        <div class="form-group">
+                            <label>Short Description</label>
+                            <div class="copy-field">
+                                <input type="text" id="copy-field-short" readonly>
+                                <button class="copy-btn-inline" onclick="copyValue('copy-field-short')">Copy</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Detailed Description</label>
+                            <div class="copy-field">
+                                <textarea id="copy-field-long" readonly style="min-height: 120px;"></textarea>
+                                <button class="copy-btn-inline" onclick="copyValue('copy-field-long')" style="top: 20px;">Copy</button>
+                            </div>
+                        </div>
+                        <div class="form-group" id="copy-field-purpose-group">
+                            <label>Single Purpose</label>
+                            <div class="copy-field">
+                                <input type="text" id="copy-field-purpose" readonly>
+                                <button class="copy-btn-inline" onclick="copyValue('copy-field-purpose')">Copy</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Privacy Policy Link</label>
+                            <div class="copy-field">
+                                <input type="text" id="copy-field-privacy" readonly>
+                                <button class="copy-btn-inline" onclick="copyValue('copy-field-privacy')">Copy</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                
-                <button class="btn btn-secondary" style="margin-top: 20px;" onclick="window.location.reload()">Onboard Another Project</button>
+
+                <h2>Automated GitHub Actions Secret Provisioning</h2>
+                <p class="panel-subtitle">Link your app with central reusable workflows by securely sending Client credentials to GitHub secrets</p>
+
+                <div class="instructions-panel" style="margin-bottom: 20px;">
+                    <strong>Google Developer API Integration steps:</strong>
+                    <ol>
+                        <li>Access the <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a>.</li>
+                        <li>Enable the <strong>Chrome Web Store API</strong> or <strong>Google Play Android Developer API</strong>.</li>
+                        <li>Configure the OAuth client ID for a Web Application and add the redirect URI: <code style="color:var(--accent-cyan);">http://localhost:3000/oauth-callback</code>.</li>
+                        <li>Input your Client ID and Client Secret below, click Authorize, then send secrets directly to GitHub.</li>
+                    </ol>
+                </div>
+
+                <div id="secrets-alert-box" class="alert alert-error" style="display: none; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;"></div>
+
+                <div class="form-row" style="margin-bottom: 16px;">
+                    <div class="form-group">
+                        <label for="secrets-client-id">OAuth Client ID</label>
+                        <input type="text" id="secrets-client-id" placeholder="Enter Client ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="secrets-client-secret">OAuth Client Secret</label>
+                        <input type="password" id="secrets-client-secret" placeholder="Enter Client Secret">
+                    </div>
+                </div>
+
+                <div class="auth-status-container" id="oauth-status-panel">
+                    <div>
+                        <h3 style="font-size: 14px; margin-bottom: 4px;">Google API Authorization</h3>
+                        <p style="font-size: 12px; color: var(--text-secondary);" id="oauth-status-text">Click authorize to authenticate your account.</p>
+                    </div>
+                    <button class="btn btn-primary" id="btn-oauth-trigger" onclick="triggerGoogleOAuth()" style="max-width: 240px;">
+                        🔒 Authorize with Google
+                    </button>
+                </div>
+
+                <div class="btn-row" style="margin-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 20px;">
+                    <div></div>
+                    <button class="btn btn-primary" id="btn-provision-secrets" onclick="provisionSecrets()" disabled style="max-width: 280px;">
+                        🚀 Send API Secrets to GitHub Repository
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // State management
         let state = {
             repos: [],
             selectedRepo: null,
+            selectedModuleIdx: 0,
             ghStatus: { authenticated: false },
             credentials: {
                 client_id: "",
@@ -1108,10 +1790,11 @@ INDEX_HTML = """<!DOCTYPE html>
                 extension_id: "",
                 refresh_token: ""
             },
-            currentStep: 1
+            currentTab: 'dashboard',
+            activeBuildInterval: null,
+            activeBuildId: null
         };
 
-        // Initialize On page load
         document.addEventListener("DOMContentLoaded", () => {
             fetchReposAndStatus();
         });
@@ -1127,248 +1810,635 @@ INDEX_HTML = """<!DOCTYPE html>
                     const badge = document.getElementById("gh-status-badge");
                     if (state.ghStatus.authenticated) {
                         badge.innerHTML = `<span class="status-dot success"></span> GitHub CLI: Logged in as ${state.ghStatus.user}`;
-                        document.getElementById("gh-cli-warning").style.display = "none";
                     } else {
                         badge.innerHTML = `<span class="status-dot error"></span> GitHub CLI: Not logged in`;
-                        const warning = document.getElementById("gh-cli-warning");
-                        warning.style.display = "block";
-                        warning.innerHTML = `<strong>GitHub CLI Error:</strong> ${state.ghStatus.error}. Please run <code>gh auth login</code> inside your terminal and refresh.`;
                     }
 
-                    // Pre-fill cached credentials
+                    // Pre-fill credentials if cached
                     if (data.cached_credentials && data.cached_credentials.client_id) {
-                        document.getElementById("input-client-id").value = data.cached_credentials.client_id;
-                        document.getElementById("input-client-secret").value = data.cached_credentials.client_secret;
+                        document.getElementById("secrets-client-id").value = data.cached_credentials.client_id;
+                        document.getElementById("secrets-client-secret").value = data.cached_credentials.client_secret;
                         state.credentials.client_id = data.cached_credentials.client_id;
                         state.credentials.client_secret = data.cached_credentials.client_secret;
                     }
 
-                    // Render Repositories list
-                    renderRepos();
+                    renderReposDashboard();
+                    
+                    // If a repo was selected previously, refresh its state
+                    if (state.selectedRepo) {
+                        const updated = state.repos.find(r => r.path === state.selectedRepo.path);
+                        if (updated) {
+                            selectRepo(updated);
+                        }
+                    }
                 })
                 .catch(err => console.error("Error fetching repository details:", err));
         }
 
-        function renderRepos() {
-            const container = document.getElementById("repo-list-container");
-            container.innerHTML = "";
+        function switchTab(tabName) {
+            const tabs = ['dashboard', 'workspace', 'builds', 'secrets'];
+            tabs.forEach(t => {
+                const content = document.getElementById(`tab-content-${t}`);
+                if (content) content.classList.remove('active');
+            });
             
+            document.getElementById(`tab-content-${tabName}`).classList.add('active');
+            
+            document.querySelectorAll('.nav-tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Highlight tab button
+            const activeBtn = Array.from(document.querySelectorAll('.nav-tab')).find(btn => btn.innerText.includes(tabName.charAt(0).toUpperCase() + tabName.slice(1)));
+            if (activeBtn) activeBtn.classList.add('active');
+            
+            state.currentTab = tabName;
+        }
+
+        function renderReposDashboard() {
+            const container = document.getElementById("repos-dashboard-grid");
+            container.innerHTML = "";
+
             if (state.repos.length === 0) {
-                container.innerHTML = "<p style='color:var(--text-secondary); grid-column: 1/-1;'>No local repositories found. Verify directory layout.</p>";
+                container.innerHTML = "<p style='color:var(--text-secondary); text-align:center; grid-column:1/-1; padding: 40px;'>No repositories detected in the git-personal folder.</p>";
                 return;
             }
 
             state.repos.forEach(repo => {
-                const item = document.createElement("div");
-                const isSelected = state.selectedRepo && state.selectedRepo.path === repo.path;
-                item.className = `repo-item ${isSelected ? 'selected' : ''}`;
-                item.tabIndex = 0;
-                item.setAttribute("role", "button");
-                item.setAttribute("aria-pressed", isSelected ? "true" : "false");
-                
-                const metaBadges = [];
-                if (repo.is_extension) {
-                    metaBadges.push(`<span class="badge-small badge-cyan">Extension (${repo.ext_dir})</span>`);
-                } else {
-                    metaBadges.push(`<span class="badge-small badge-warning">No manifest.json</span>`);
-                }
-                
-                if (repo.workflow_exists) {
-                    metaBadges.push(`<span class="badge-small badge-success">CI/CD Configured</span>`);
+                const card = document.createElement("div");
+                card.className = "app-card";
+
+                // Resolve type labels & badges
+                let typeBadge = `<span class="badge badge-cyan">${repo.appType}</span>`;
+                if (repo.appType === "chrome-extension") {
+                    typeBadge = `<span class="badge badge-cyan">Chrome Extension</span>`;
+                } else if (repo.appType === "flutter-app") {
+                    typeBadge = `<span class="badge badge-purple">Flutter App</span>`;
+                } else if (repo.appType === "android-app") {
+                    typeBadge = `<span class="badge badge-success">Android App</span>`;
+                } else if (repo.appType === "multi-module") {
+                    typeBadge = `<span class="badge badge-purple">Multi-Module / Hybrid</span>`;
                 }
 
-                item.innerHTML = `
-                    <div class="repo-name">${repo.name}</div>
-                    <div class="repo-meta">
-                        <span>Directory: ${repo.ext_dir}</span>
-                        <span style="font-size:10px; color:var(--text-muted); word-break:break-all;">${repo.path}</span>
+                // Resolve metadata status badge
+                let statusBadge = `<span class="badge badge-error">Missing Metadata</span>`;
+                let desc = repo.metadata ? repo.metadata.description : "No app-metadata.json file configured in this repository yet.";
+                
+                if (repo.metadata_exists && repo.metadata.modules) {
+                    const primaryModule = repo.metadata.modules[0];
+                    const status = primaryModule ? primaryModule.status : "draft";
+                    if (status === "published") {
+                        statusBadge = `<span class="badge badge-success">Live Store</span>`;
+                    } else if (status === "beta") {
+                        statusBadge = `<span class="badge badge-cyan">Beta State</span>`;
+                    } else {
+                        statusBadge = `<span class="badge badge-warning">Draft Listing</span>`;
+                    }
+                }
+
+                // Render modules listing
+                let modulesHtml = "";
+                if (repo.metadata_exists && repo.metadata.modules) {
+                    repo.metadata.modules.forEach(m => {
+                        modulesHtml += `
+                            <div class="module-row">
+                                <span class="module-info">📦 <strong>${m.name}</strong></span>
+                                <span class="badge badge-cyan" style="font-size:8px; padding:2px 6px;">${m.status}</span>
+                            </div>
+                        `;
+                    });
+                } else {
+                    modulesHtml = `<div style="font-size:11px; color:var(--text-muted);">Inferred Module: ${repo.inferredType}</div>`;
+                }
+
+                card.innerHTML = `
+                    <div class="app-card-header">
+                        <div class="app-title-section">
+                            <div class="app-card-title">${repo.appName}</div>
+                            <div class="app-card-path">${repo.name}/</div>
+                        </div>
+                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+                            ${typeBadge}
+                            ${statusBadge}
+                        </div>
                     </div>
-                    <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:auto;">
-                        ${metaBadges.join("")}
+                    
+                    <div class="app-description">${desc}</div>
+                    
+                    <div class="app-card-modules">
+                        ${modulesHtml}
+                    </div>
+
+                    <div class="cicd-run-status" id="run-status-${repo.name}" style="display:none;">
+                        <!-- Updated asynchronously via JS -->
+                    </div>
+
+                    <div class="btn-row">
+                        <button class="btn btn-primary" onclick="openRepoWorkspace('${repo.name}')">🛠️ Manage App</button>
                     </div>
                 `;
 
-                item.addEventListener("click", () => {
-                    document.querySelectorAll(".repo-item").forEach(el => {
-                        el.classList.remove("selected");
-                        el.setAttribute("aria-pressed", "false");
-                    });
-                    item.classList.add("selected");
-                    item.setAttribute("aria-pressed", "true");
-                    selectRepository(repo);
-                });
+                container.appendChild(card);
+                
+                // Proactively trigger CI/CD status fetch for this card
+                fetchRepoRuns(repo);
+            });
+        }
 
-                item.addEventListener("keydown", (e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        item.click();
+        function fetchRepoRuns(repo) {
+            fetch(`/api/cicd-status?path=${encodeURIComponent(repo.path)}`)
+                .then(res => res.json())
+                .then(data => {
+                    const statusBox = document.getElementById(`run-status-${repo.name}`);
+                    if (!statusBox) return;
+
+                    if (data.success && data.runs && data.runs.length > 0) {
+                        const run = data.runs[0];
+                        statusBox.style.display = "flex";
+                        
+                        let dotClass = "warning";
+                        if (run.conclusion === "success") dotClass = "success";
+                        else if (run.conclusion === "failure") dotClass = "error";
+                        
+                        statusBox.innerHTML = `
+                            <div class="cicd-run-header">
+                                <span>CI/CD RUN</span>
+                                <span>${new Date(run.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <div class="cicd-run-info">
+                                <span class="cicd-name">${run.name}</span>
+                                <span class="badge badge-${dotClass === 'success' ? 'success' : dotClass === 'error' ? 'error' : 'warning'}" style="font-size:8px; padding:2px 6px;">
+                                    ${run.conclusion || run.status}
+                                </span>
+                            </div>
+                        `;
                     }
-                });
-
-                container.appendChild(item);
-            });
+                })
+                .catch(err => console.error("Error fetching run status:", err));
         }
 
-        function selectRepository(repo) {
+        function openRepoWorkspace(repoName) {
+            const repo = state.repos.find(r => r.name === repoName);
+            if (repo) {
+                selectRepo(repo);
+                switchTab('workspace');
+            }
+        }
+
+        function selectRepo(repo) {
             state.selectedRepo = repo;
-            const details = document.getElementById("selected-repo-details");
-            const btn = document.getElementById("btn-to-step-2");
-            const text = document.getElementById("onboard-status-text");
+            state.selectedModuleIdx = 0;
+            
+            // Enable workspace tabs
+            document.getElementById("tab-nav-workspace").disabled = false;
+            document.getElementById("tab-nav-builds").disabled = false;
+            document.getElementById("tab-nav-secrets").disabled = false;
 
-            details.style.display = "block";
-            btn.disabled = false;
+            // Render workspace titles
+            document.getElementById("workspace-sidebar-title").innerText = repo.appName;
+            document.getElementById("workspace-sidebar-desc").innerText = `Folder: ${repo.name}`;
+            
+            // Render Module list in sidebar
+            renderModuleList();
 
-            if (repo.is_extension) {
-                text.innerHTML = `🎯 Target project: <strong>${repo.name}</strong> (${repo.ext_dir}). Reusable workflow will bind build actions to this directory.`;
+            // Setup forms
+            if (repo.metadata_exists) {
+                document.getElementById("workspace-metadata-panel").style.display = "flex";
+                document.getElementById("init-metadata-banner").style.display = "none";
+                populateMetadataForm();
             } else {
-                text.innerHTML = `⚠️ Target project: <strong>${repo.name}</strong> has no <code>manifest.json</code>. The onboarding script will generate a new boilerplate popup extension in `/extension` folder.`;
+                document.getElementById("workspace-metadata-panel").style.display = "none";
+                document.getElementById("init-metadata-banner").style.display = "flex";
             }
+
+            // Load assets directory
+            fetchRepoAssets();
             
-            // Set target directory on step 2 & 3
-            document.getElementById("btn-to-step-2").onclick = () => goToStep(2);
+            // Setup build module specs
+            setupBuildExecutorPanel();
+
+            // Populate copy paste list
+            populateOnboardingChecklist();
         }
 
-        function goToStep(stepNum) {
-            // Update Stepper Headers
-            for (let i = 1; i <= 4; i++) {
-                const el = document.getElementById(`step-indicator-${i}`);
-                el.classList.remove("active", "completed");
-                if (i < stepNum) {
-                    el.classList.add("completed");
-                } else if (i === stepNum) {
-                    el.classList.add("active");
-                }
-            }
+        function renderModuleList() {
+            const list = document.getElementById("workspace-module-list");
+            list.innerHTML = "";
 
-            // Update Cards Display
-            for (let i = 1; i <= 4; i++) {
-                const card = document.getElementById(`card-step-${i}`);
-                card.classList.remove("active");
+            if (state.selectedRepo.metadata_exists && state.selectedRepo.metadata.modules) {
+                state.selectedRepo.metadata.modules.forEach((mod, idx) => {
+                    const item = document.createElement("div");
+                    const isSel = idx === state.selectedModuleIdx;
+                    item.className = `list-item ${isSel ? 'selected' : ''}`;
+                    item.onclick = () => {
+                        state.selectedModuleIdx = idx;
+                        renderModuleList();
+                        populateMetadataForm();
+                        setupBuildExecutorPanel();
+                        populateOnboardingChecklist();
+                    };
+                    
+                    item.innerHTML = `
+                        <div class="list-item-title">📦 ${mod.name}</div>
+                        <div class="list-item-desc">Type: ${mod.type} | Folder: ${mod.path}</div>
+                    `;
+                    list.appendChild(item);
+                });
+            } else {
+                const item = document.createElement("div");
+                item.className = "list-item selected";
+                item.innerHTML = `
+                    <div class="list-item-title">Inferred Module</div>
+                    <div class="list-item-desc">${state.selectedRepo.inferredType}</div>
+                `;
+                list.appendChild(item);
             }
-            document.getElementById(`card-step-${stepNum}`).classList.add("active");
-            state.currentStep = stepNum;
         }
 
-        function validateStep2() {
-            const client_id = document.getElementById("input-client-id").value.strip();
-            const client_secret = document.getElementById("input-client-secret").value.strip();
-            const errorBox = document.getElementById("step-2-error");
-
-            if (!client_id || !client_secret) {
-                errorBox.style.display = "block";
-                errorBox.innerText = "Please fill in OAuth Client ID and Client Secret.";
-                return;
-            }
-
-            errorBox.style.display = "none";
-            state.credentials.client_id = client_id;
-            state.credentials.client_secret = client_secret;
-            
-            goToStep(3);
-        }
-
-        // --- STEP 3 Actions ---
-
-        function runOnboardScript() {
-            const btn = document.getElementById("btn-onboard-action");
-            const logsContainer = document.getElementById("onboard-logs-container");
-            const logsOutput = document.getElementById("onboard-terminal-logs");
-            
-            btn.disabled = true;
-            logsContainer.style.display = "block";
-            logsOutput.innerText = "Spawning onboarding scripts and packaging zip. Please wait...";
-
-            fetch('/api/onboard', {
+        function initializeMetadata() {
+            fetch('/api/init-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: json.dumps({ path: state.selectedRepo.path })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    logsOutput.innerText = data.output;
-                    logsOutput.scrollTop = logsOutput.scrollHeight;
-                    
-                    // Reveal extension id input field
-                    document.getElementById("extension-id-group").style.display = "flex";
-                    btn.innerText = "✅ Package Generated Successfully";
-                    
-                    // Enable next step validation if extension ID is filled
-                    parseExtIdInput();
-                } else {
-                    logsOutput.innerText = "❌ ONBOARD SCRIPT ERROR:\\n" + data.error;
-                    btn.disabled = false;
-                    btn.innerText = "❌ Execution Failed. Click to Retry";
-                }
-            })
-            .catch(err => {
-                logsOutput.innerText = "❌ Connection error during execution: " + err;
-                btn.disabled = false;
-            });
-        }
-
-        function parseExtIdInput() {
-            const input = document.getElementById("input-extension-id").value.strip().toLowerCase();
-            const badge = document.getElementById("ext-id-success-badge");
-            const display = document.getElementById("parsed-id-display");
-            const btn = document.getElementById("btn-to-step-4");
-
-            // Look for a 32-character string of letters a-p
-            const regex = /([a-p]{32})/;
-            const match = input.match(regex);
-
-            if (match) {
-                state.credentials.extension_id = match[1];
-                display.innerText = match[1];
-                badge.style.display = "flex";
-                badge.className = "alert alert-info";
-                btn.disabled = false;
-            } else {
-                state.credentials.extension_id = "";
-                badge.style.display = "none";
-                btn.disabled = true;
-            }
-        }
-
-        function validateStep3() {
-            const errorBox = document.getElementById("step-3-error");
-            if (!state.credentials.extension_id) {
-                errorBox.style.display = "block";
-                errorBox.innerText = "Please input a valid Chrome Extension ID or developer dashboard URL.";
-                return;
-            }
-            errorBox.style.display = "none";
-            goToStep(4);
-        }
-
-        // --- STEP 4 Actions ---
-
-        let pollInterval = null;
-
-        function triggerGoogleOAuth() {
-            const btn = document.getElementById("btn-oauth-trigger");
-            const panel = document.getElementById("oauth-status-panel");
-            const text = document.getElementById("oauth-status-text");
-            const saveCreds = document.getElementById("checkbox-save-creds").checked;
-
-            btn.disabled = true;
-            btn.innerHTML = `<span class="status-dot success spinning" style="width:12px; height:12px; border-width:2px; border-style:solid; border-color:transparent var(--success) var(--success); background:none; box-shadow:none;"></span> Waiting for login...`;
-            text.innerText = "Browser opened. Please grant access to Chrome Web Store on the Google authorization screen.";
-
-            // Save credentials first and initiate OAuth
-            fetch('/api/start-oauth', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: json.dumps({
-                    client_id: state.credentials.client_id,
-                    client_secret: state.credentials.client_secret,
-                    save_credentials: saveCreds
+                body: JSON.stringify({
+                    path: state.selectedRepo.path,
+                    type: state.selectedRepo.inferredType,
+                    ext_dir: state.selectedRepo.ext_dir
                 })
             })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    // Start polling for refresh token
+                    fetchReposAndStatus();
+                }
+            })
+            .catch(err => console.error("Error initializing metadata:", err));
+        }
+
+        function populateMetadataForm() {
+            const meta = state.selectedRepo.metadata;
+            if (!meta) return;
+
+            document.getElementById("meta-app-name").value = meta.appName || "";
+            document.getElementById("meta-app-type").value = meta.appType || "chrome-extension";
+            document.getElementById("meta-app-desc").value = meta.description || "";
+
+            // Populate currently selected module details
+            const mod = meta.modules[state.selectedModuleIdx];
+            if (mod) {
+                document.getElementById("meta-mod-name").value = mod.name || "";
+                document.getElementById("meta-mod-type").value = mod.type || "chrome-extension";
+                document.getElementById("meta-mod-path").value = mod.path || "";
+                document.getElementById("meta-mod-status").value = mod.status || "draft";
+                document.getElementById("meta-mod-storeid").value = mod.storeId || "";
+                document.getElementById("meta-mod-storeurl").value = mod.storeUrl || "";
+                document.getElementById("meta-mod-buildscript").value = mod.buildScript || "";
+                document.getElementById("meta-mod-artifact").value = mod.artifactPath || "";
+
+                // Populate cws Listing Details
+                if (mod.type === "chrome-extension" && mod.cwsListing) {
+                    document.getElementById("meta-cws-short").value = mod.cwsListing.shortDescription || "";
+                    document.getElementById("meta-cws-long").value = mod.cwsListing.detailedDescription || "";
+                    document.getElementById("meta-cws-purpose").value = mod.cwsListing.singlePurpose || "";
+                    document.getElementById("meta-cws-category").value = mod.cwsListing.category || "productivity";
+                    document.getElementById("meta-cws-privacy").value = mod.cwsListing.privacyPolicyUrl || "";
+                }
+
+                // Populate play Listing Details
+                if ((mod.type === "android-app" || mod.type === "flutter-app") && mod.playStoreListing) {
+                    document.getElementById("meta-play-title").value = mod.playStoreListing.title || "";
+                    document.getElementById("meta-play-short").value = mod.playStoreListing.shortDescription || "";
+                    document.getElementById("meta-play-full").value = mod.playStoreListing.fullDescription || "";
+                    document.getElementById("meta-play-category").value = mod.playStoreListing.category || "utilities";
+                    document.getElementById("meta-play-privacy").value = mod.playStoreListing.privacyPolicyUrl || "";
+                }
+            }
+
+            adjustFormFieldsForType();
+            toggleListingSchemaFields();
+            toggleStoreRequirements();
+        }
+
+        function adjustFormFieldsForType() {
+            // Nothing special, standard field adjustments
+        }
+
+        function toggleListingSchemaFields() {
+            const mType = document.getElementById("meta-mod-type").value;
+            const cwsBox = document.getElementById("cws-listing-fields");
+            const playBox = document.getElementById("play-listing-fields");
+
+            if (mType === "chrome-extension") {
+                cwsBox.style.display = "flex";
+                playBox.style.display = "none";
+            } else {
+                cwsBox.style.display = "none";
+                playBox.style.display = "flex";
+            }
+        }
+
+        function toggleStoreRequirements() {
+            const status = document.getElementById("meta-mod-status").value;
+            const row = document.getElementById("store-requirements-row");
+            
+            if (status === "published" || status === "beta") {
+                row.style.display = "grid";
+            } else {
+                row.style.display = "none";
+            }
+        }
+
+        function saveMetadataChanges() {
+            const meta = JSON.parse(JSON.stringify(state.selectedRepo.metadata));
+            
+            meta.appName = document.getElementById("meta-app-name").value;
+            meta.appType = document.getElementById("meta-app-type").value;
+            meta.description = document.getElementById("meta-app-desc").value;
+
+            // Update selected module
+            const mod = meta.modules[state.selectedModuleIdx];
+            if (mod) {
+                mod.name = document.getElementById("meta-mod-name").value;
+                mod.type = document.getElementById("meta-mod-type").value;
+                mod.path = document.getElementById("meta-mod-path").value;
+                mod.status = document.getElementById("meta-mod-status").value;
+                mod.storeId = document.getElementById("meta-mod-storeid").value;
+                mod.storeUrl = document.getElementById("meta-mod-storeurl").value;
+                mod.buildScript = document.getElementById("meta-mod-buildscript").value;
+                mod.artifactPath = document.getElementById("meta-mod-artifact").value;
+
+                if (mod.type === "chrome-extension") {
+                    mod.cwsListing = {
+                        shortDescription: document.getElementById("meta-cws-short").value,
+                        detailedDescription: document.getElementById("meta-cws-long").value,
+                        singlePurpose: document.getElementById("meta-cws-purpose").value,
+                        category: document.getElementById("meta-cws-category").value,
+                        privacyPolicyUrl: document.getElementById("meta-cws-privacy").value
+                    };
+                } else {
+                    mod.playStoreListing = {
+                        title: document.getElementById("meta-play-title").value,
+                        shortDescription: document.getElementById("meta-play-short").value,
+                        fullDescription: document.getElementById("meta-play-full").value,
+                        category: document.getElementById("meta-play-category").value,
+                        privacyPolicyUrl: document.getElementById("meta-play-privacy").value
+                    };
+                }
+            }
+
+            fetch('/api/save-metadata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    path: state.selectedRepo.path,
+                    metadata: meta
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Show saved alert
+                    const alert = document.getElementById("save-metadata-success");
+                    alert.style.display = "flex";
+                    setTimeout(() => {
+                        alert.style.display = "none";
+                    }, 3000);
+                    
+                    fetchReposAndStatus();
+                }
+            })
+            .catch(err => console.error("Error saving metadata:", err));
+        }
+
+        // --- TAB 3: Build & Assets Operations ---
+        
+        function setupBuildExecutorPanel() {
+            const nameEl = document.getElementById("build-module-name");
+            const scriptEl = document.getElementById("build-script-command");
+            
+            if (state.selectedRepo.metadata_exists && state.selectedRepo.metadata.modules) {
+                const mod = state.selectedRepo.metadata.modules[state.selectedModuleIdx];
+                if (mod) {
+                    nameEl.innerText = `${state.selectedRepo.appName} — ${mod.name}`;
+                    scriptEl.innerText = `Command: ${mod.buildScript || "No build script defined"}`;
+                    document.getElementById("btn-run-build").disabled = !mod.buildScript;
+                }
+            } else {
+                nameEl.innerText = `${state.selectedRepo.appName}`;
+                scriptEl.innerText = "Command: Inferred (initialize metadata to edit)";
+                document.getElementById("btn-run-build").disabled = true;
+            }
+        }
+
+        function triggerBuild() {
+            const mod = state.selectedRepo.metadata.modules[state.selectedModuleIdx];
+            if (!mod || !mod.buildScript) return;
+
+            const consoleOutput = document.getElementById("build-terminal-output");
+            const badge = document.getElementById("build-status-badge");
+            const btn = document.getElementById("btn-run-build");
+            
+            btn.disabled = true;
+            badge.style.display = "inline-flex";
+            badge.className = "badge badge-cyan";
+            badge.innerText = "Running...";
+            consoleOutput.innerText = `Spawning build process in background...\nCommand: ${mod.buildScript}\n\n`;
+
+            fetch('/api/build', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    path: state.selectedRepo.path,
+                    build_script: mod.buildScript
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    state.activeBuildId = data.build_id;
+                    startBuildLogPolling();
+                } else {
+                    consoleOutput.innerText += `❌ Failed to trigger build: ${data.error}`;
+                    badge.className = "badge badge-error";
+                    badge.innerText = "Error";
+                    btn.disabled = false;
+                }
+            })
+            .catch(err => {
+                consoleOutput.innerText += `❌ Connection error triggering build: ${err}`;
+                badge.className = "badge badge-error";
+                badge.innerText = "Failed";
+                btn.disabled = false;
+            });
+        }
+
+        function startBuildLogPolling() {
+            if (state.activeBuildInterval) clearInterval(state.activeBuildInterval);
+            
+            const consoleOutput = document.getElementById("build-terminal-output");
+            const badge = document.getElementById("build-status-badge");
+            const btn = document.getElementById("btn-run-build");
+
+            state.activeBuildInterval = setInterval(() => {
+                fetch(`/api/build-status?build_id=${state.activeBuildId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            consoleOutput.innerText = data.log;
+                            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+
+                            if (data.status !== "running") {
+                                clearInterval(state.activeBuildInterval);
+                                btn.disabled = false;
+                                
+                                if (data.status === "success") {
+                                    badge.className = "badge badge-success";
+                                    badge.innerText = "Success";
+                                    
+                                    // Refresh assets
+                                    fetchRepoAssets();
+                                } else {
+                                    badge.className = "badge badge-error";
+                                    badge.innerText = "Failed";
+                                }
+                            }
+                        }
+                    })
+                    .catch(err => console.error("Error polling build logs:", err));
+            }, 1000);
+        }
+
+        function fetchRepoAssets() {
+            const list = document.getElementById("workspace-asset-list");
+            list.innerHTML = "<p style='color:var(--text-muted); font-size:12px;'>Scanning for built assets...</p>";
+
+            fetch(`/api/assets?path=${encodeURIComponent(state.selectedRepo.path)}`)
+                .then(res => res.json())
+                .then(data => {
+                    list.innerHTML = "";
+                    if (data.success && data.assets && data.assets.length > 0) {
+                        data.assets.forEach(a => {
+                            const item = document.createElement("div");
+                            item.className = "asset-item";
+                            item.innerHTML = `
+                                <div class="asset-info">
+                                    <div class="asset-name">${a.name}</div>
+                                    <div class="asset-meta">${a.size_mb} MB | Path: ${a.rel_path}</div>
+                                </div>
+                                <a href="/api/download?path=${encodeURIComponent(a.abs_path)}" class="download-btn">
+                                    📥 Download
+                                </a>
+                            `;
+                            list.appendChild(item);
+                        });
+                    } else {
+                        list.innerHTML = "<p style='color:var(--text-muted); font-size:12px;'>No local ZIP, APK, or AAB files found in common project folders.</p>";
+                    }
+                })
+                .catch(err => {
+                    list.innerHTML = `<p style='color:var(--error); font-size:12px;'>Failed to load assets: ${err}</p>`;
+                });
+        }
+
+        // --- TAB 4: Secrets Onboarding Copy Pastable UI ---
+        
+        function populateOnboardingChecklist() {
+            const meta = state.selectedRepo.metadata;
+            if (!meta) return;
+            const mod = meta.modules[state.selectedModuleIdx];
+            if (!mod) return;
+
+            const guideList = document.getElementById("onboarding-guide-steps");
+            const shortEl = document.getElementById("copy-field-short");
+            const longEl = document.getElementById("copy-field-long");
+            const purposeEl = document.getElementById("copy-field-purpose");
+            const privacyEl = document.getElementById("copy-field-privacy");
+            
+            if (mod.type === "chrome-extension") {
+                document.getElementById("copy-field-purpose-group").style.display = "flex";
+                
+                shortEl.value = (mod.cwsListing && mod.cwsListing.shortDescription) || "";
+                longEl.value = (mod.cwsListing && mod.cwsListing.detailedDescription) || "";
+                purposeEl.value = (mod.cwsListing && mod.cwsListing.singlePurpose) || "";
+                privacyEl.value = (mod.cwsListing && mod.cwsListing.privacyPolicyUrl) || "";
+
+                guideList.innerHTML = `
+                    <li>Go to the <a href="https://chrome.google.com/webstore/devconsole" target="_blank">Chrome Web Store Developer Console</a>.</li>
+                    <li>Click <strong>Add new item</strong> and drag-and-drop the generated ZIP package found in the <strong>Builds & Assets</strong> console.</li>
+                    <li>Once uploaded, go to <strong>Store listing</strong>. Copy-paste the title, descriptions, category, and single-purpose text from the right panel.</li>
+                    <li>Go to the <strong>Privacy tab</strong>. Copy and paste the Privacy Policy link. Select justifications for requested permissions.</li>
+                    <li>Save the draft, and copy your assigned <strong>Extension ID</strong> from the Developer dashboard address URL. Paste it into your module configuration in the <strong>Workspace tab</strong>.</li>
+                `;
+            } else {
+                document.getElementById("copy-field-purpose-group").style.display = "none";
+                
+                shortEl.value = (mod.playStoreListing && mod.playStoreListing.shortDescription) || "";
+                longEl.value = (mod.playStoreListing && mod.playStoreListing.fullDescription) || "";
+                privacyEl.value = (mod.playStoreListing && mod.playStoreListing.privacyPolicyUrl) || "";
+
+                guideList.innerHTML = `
+                    <li>Go to the <a href="https://play.google.com/console" target="_blank">Google Play Console</a> and select your Developer account.</li>
+                    <li>Click <strong>Create app</strong>. Enter App name, default language, and choose App type.</li>
+                    <li>Go to <strong>Dashboard -> Set up your app</strong>. Configure declarations, categories, and copy-paste details from the right panel.</li>
+                    <li>Go to <strong>App content -> Privacy Policy</strong>. Copy and paste the Privacy Policy link.</li>
+                    <li>Go to <strong>Production / Testing</strong> and upload the APK or AAB bundle found in your <strong>Builds & Assets</strong> tab.</li>
+                </ul>
+                `;
+            }
+        }
+
+        function copyValue(elementId) {
+            const input = document.getElementById(elementId);
+            input.select();
+            input.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(input.value).then(() => {
+                const btn = Array.from(document.querySelectorAll('.copy-btn-inline')).find(b => b.previousElementSibling === input || b.previousElementSibling.firstElementChild === input || b.parentElement.firstElementChild === input);
+                if (btn) {
+                    const originalText = btn.innerText;
+                    btn.innerText = 'Copied!';
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                    }, 2000);
+                }
+            });
+        }
+
+        // --- STEP 4 Google OAuth & Secret Provisioning ---
+        
+        let pollInterval = null;
+
+        function triggerGoogleOAuth() {
+            const btn = document.getElementById("btn-oauth-trigger");
+            const text = document.getElementById("oauth-status-text");
+            
+            const client_id = document.getElementById("secrets-client-id").value.trim();
+            const client_secret = document.getElementById("secrets-client-secret").value.trim();
+            const alertBox = document.getElementById("secrets-alert-box");
+
+            if (!client_id || !client_secret) {
+                alertBox.style.display = "block";
+                alertBox.innerText = "OAuth Client ID and Client Secret are required before authorizing.";
+                return;
+            }
+
+            alertBox.style.display = "none";
+            btn.disabled = true;
+            btn.innerHTML = `<span class="status-dot success spinning" style="width:12px; height:12px; border-width:2px; border-style:solid; border-color:transparent var(--success) var(--success); background:none; box-shadow:none;"></span> Waiting for login...`;
+            text.innerText = "Browser opened. Please grant access to Chrome Web Store on the Google authorization screen.";
+
+            fetch('/api/start-oauth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    client_id: client_id,
+                    client_secret: client_secret,
+                    save_credentials: true
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    state.credentials.client_id = client_id;
+                    state.credentials.client_secret = client_secret;
                     startPolling();
                 } else {
                     text.innerText = "Error starting OAuth: " + data.error;
@@ -1398,8 +2468,7 @@ INDEX_HTML = """<!DOCTYPE html>
                             clearInterval(pollInterval);
                             state.credentials.refresh_token = data.refresh_token;
                             
-                            // Update UI
-                            text.innerHTML = `<span class="oauth-success-badge">✓ Google Account Connected!</span> Refresh Token captured.`;
+                            text.innerHTML = `<span class="badge badge-success">✓ Google Account Connected!</span> Refresh Token captured. Ready to provision secrets.`;
                             btn.style.display = "none";
                             nextBtn.disabled = false;
                         } else if (data.status === "error") {
@@ -1409,79 +2478,59 @@ INDEX_HTML = """<!DOCTYPE html>
                             btn.innerText = "🔒 Authorize with Google";
                         }
                     })
-                    .catch(err => {
-                        console.error("Polling error:", err);
-                    });
+                    .catch(err => console.error("Polling error:", err));
             }, 1000);
         }
 
         function provisionSecrets() {
-            const alertBox = document.getElementById("provision-status-alert");
             const finalBtn = document.getElementById("btn-provision-secrets");
-            const backBtn = document.getElementById("btn-final-back");
+            const alertBox = document.getElementById("secrets-alert-box");
+
+            // Extension ID check
+            const meta = state.selectedRepo.metadata;
+            const mod = meta.modules[state.selectedModuleIdx];
+            if (!mod || !mod.storeId) {
+                alertBox.style.display = "block";
+                alertBox.className = "alert alert-error badge-error";
+                alertBox.innerText = "Please input the Extension/App Store ID inside the Workspace configurations first.";
+                return;
+            }
 
             finalBtn.disabled = true;
-            backBtn.disabled = true;
-            alertBox.style.display = "flex";
-            alertBox.className = "alert alert-info";
+            alertBox.style.display = "block";
+            alertBox.className = "alert badge-cyan";
             alertBox.innerText = "Encrypting and uploading Client ID, Secret, Extension ID, and Refresh Token to GitHub Secrets...";
 
             fetch('/api/secrets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: json.dumps({
+                body: JSON.stringify({
                     path: state.selectedRepo.path,
                     client_id: state.credentials.client_id,
                     client_secret: state.credentials.client_secret,
-                    extension_id: state.credentials.extension_id,
+                    extension_id: mod.storeId,
                     refresh_token: state.credentials.refresh_token
                 })
             })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    alertBox.style.display = "none";
-                    document.getElementById("oauth-status-panel").style.display = "none";
-                    document.getElementById("final-btn-row").style.display = "none";
-                    document.getElementById("success-panel").style.display = "flex";
+                    alertBox.className = "alert badge-success";
+                    alertBox.innerText = "🎉 GitHub Secrets configured successfully! Centralized workflows are now linked.";
                     
-                    // Mark step completed
-                    const finalStep = document.getElementById("step-indicator-4");
-                    finalStep.classList.remove("active");
-                    finalStep.classList.add("completed");
+                    fetchReposAndStatus();
                 } else {
-                    alertBox.className = "alert alert-error";
+                    alertBox.className = "alert badge-error";
                     alertBox.innerText = "Failed to upload secrets: " + data.error;
                     finalBtn.disabled = false;
-                    backBtn.disabled = false;
                 }
             })
             .catch(err => {
-                alertBox.className = "alert alert-error";
+                alertBox.className = "alert badge-error";
                 alertBox.innerText = "Connection error setting secrets: " + err;
                 finalBtn.disabled = false;
-                backBtn.disabled = false;
             });
         }
-
-        function copyGitCommands() {
-            const code = `git add .\\ngit commit -m "Onboard extension to centralized workflows"\\ngit push origin main`;
-            navigator.clipboard.writeText(code).then(() => {
-                const btn = document.getElementById('copy-btn');
-                if (btn) {
-                    const originalText = btn.innerText;
-                    btn.innerText = 'Copied!';
-                    setTimeout(() => {
-                        btn.innerText = originalText;
-                    }, 2000);
-                }
-            });
-        }
-
-        // Standard helpers
-        String.prototype.strip = function() {
-            return this.replace(/^\\s+|\\s+$/g, '');
-        };
     </script>
 </body>
 </html>
@@ -1489,17 +2538,15 @@ INDEX_HTML = """<!DOCTYPE html>
 
 def main():
     print("====================================================")
-    print("🚀 Starting Chrome Extension Onboarding Web Server...")
+    print("🚀 Starting Saturn App Console & Registry Web Server...")
     print("====================================================")
     
     server = HTTPServer(('localhost', SERVER_PORT), WebConsoleHandler)
     
-    # Inform user
     url = f"http://localhost:{SERVER_PORT}"
     print(f"\n🌐 Web Console is listening at: {url}")
     print("Opening the dashboard in your default browser now...")
     
-    # Launch browser automatically
     webbrowser.open(url)
     
     try:
