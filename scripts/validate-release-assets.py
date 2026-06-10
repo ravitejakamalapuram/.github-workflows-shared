@@ -174,6 +174,230 @@ def validate_android_app(repo_path):
         
     return success
 
+def generate_metadata_template(repo_path, expected_type, ext_dir="."):
+    appName = os.path.basename(repo_path)
+    description = "A premium application."
+    version = "1.0.0"
+    
+    if expected_type == "chrome-extension":
+        manifest_path = os.path.join(repo_path, ext_dir, "manifest.json")
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, "r") as f:
+                    manifest = json.load(f)
+                appName = manifest.get("name", appName)
+                description = manifest.get("description", description)
+                version = manifest.get("version", version)
+            except Exception:
+                pass
+                
+        return {
+            "appName": appName,
+            "appType": "chrome-extension",
+            "repoName": os.path.basename(repo_path),
+            "description": description,
+            "modules": [
+                {
+                  "name": "Chrome Extension",
+                  "type": "chrome-extension",
+                  "path": ext_dir,
+                  "status": "draft",
+                  "storeId": "your-extension-id-here",
+                  "storeUrl": "https://chromewebstore.google.com/detail/your-app/your-extension-id-here",
+                  "developerConsoleUrl": "https://chrome.google.com/webstore/devconsole/your-extension-id-here",
+                  "buildScript": "npm run build",
+                  "artifactPath": "initial-package.zip",
+                  "cwsListing": {
+                    "shortDescription": description[:130] if description else "Short description here.",
+                    "detailedDescription": description or "Detailed description here.",
+                    "category": "productivity",
+                    "singlePurpose": description[:70] if description else "Single purpose here.",
+                    "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
+                  }
+                }
+            ]
+        }
+    elif expected_type == "flutter-app":
+        pubspec_path = os.path.join(repo_path, "pubspec.yaml")
+        if os.path.exists(pubspec_path):
+            try:
+                with open(pubspec_path, "r") as f:
+                    for line in f:
+                        if line.startswith("name:"):
+                            appName = line.split(":")[1].strip()
+                        elif line.startswith("description:"):
+                            description = line.split(":")[1].strip()
+            except Exception:
+                pass
+        return {
+            "appName": appName,
+            "appType": "flutter-app",
+            "repoName": os.path.basename(repo_path),
+            "description": description,
+            "modules": [
+                {
+                  "name": "Flutter Android App",
+                  "type": "flutter-app",
+                  "path": ".",
+                  "status": "draft",
+                  "storeId": f"com.ravitejakamalapuram.{appName.lower()}",
+                  "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{appName.lower()}",
+                  "developerConsoleUrl": "https://play.google.com/console/u/0/developers/...",
+                  "buildScript": "flutter build appbundle",
+                  "artifactPath": "build/app/outputs/bundle/release/app-release.aab",
+                  "playStoreListing": {
+                    "title": appName,
+                    "shortDescription": description[:80] if description else "Short description here.",
+                    "fullDescription": description or "Full description here.",
+                    "category": "utilities",
+                    "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
+                  }
+                }
+            ]
+        }
+    else: # android-app
+        return {
+            "appName": appName,
+            "appType": "android-app",
+            "repoName": os.path.basename(repo_path),
+            "description": "Android application.",
+            "modules": [
+                {
+                  "name": "Android Application",
+                  "type": "android-app",
+                  "path": ".",
+                  "status": "draft",
+                  "storeId": f"com.ravitejakamalapuram.{appName.lower()}",
+                  "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{appName.lower()}",
+                  "developerConsoleUrl": "https://play.google.com/console/u/0/developers/...",
+                  "buildScript": "./gradlew assembleRelease",
+                  "artifactPath": "app/build/outputs/apk/release/app-release.apk",
+                  "playStoreListing": {
+                    "title": appName,
+                    "shortDescription": "Short description here.",
+                    "fullDescription": "Full description here.",
+                    "category": "utilities",
+                    "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
+                  }
+                }
+            ]
+        }
+
+def validate_app_metadata(repo_path, expected_type, ext_dir="."):
+    metadata_name = "app-metadata.json"
+    metadata_path = os.path.join(repo_path, metadata_name)
+    if not os.path.exists(metadata_path):
+        metadata_name = ".app-metadata.json"
+        metadata_path = os.path.join(repo_path, metadata_name)
+        
+    if not os.path.exists(metadata_path):
+        log_error("app-metadata.json is missing in the root directory. This file is required as the single source of truth for app details.")
+        print("\n" + "="*80)
+        print("💡 SELF-DOCUMENTING CI/CD FAILURE: MISSING METADATA")
+        print("="*80)
+        print("To fix this build error, create a file named 'app-metadata.json' at the root of your repository.")
+        print(f"Here is a custom-tailored checklist template pre-populated for this '{expected_type}' project:")
+        print("-"*80)
+        
+        template = generate_metadata_template(repo_path, expected_type, ext_dir)
+        print(json.dumps(template, indent=2))
+        print("-"*80)
+        print("Copy the JSON template block above, populate any missing fields, and commit it to resolve compliance.")
+        print("="*80 + "\n")
+        return False
+
+    try:
+        with open(metadata_path, "r") as f:
+            meta = json.load(f)
+    except Exception as e:
+        log_error(f"app-metadata.json is not valid JSON: {e}")
+        return False
+        
+    success = True
+    required_root_keys = ["appName", "appType", "modules"]
+    for key in required_root_keys:
+        if key not in meta:
+            log_error(f"app-metadata.json is missing root key: '{key}'")
+            success = False
+            
+    if not success:
+        return False
+        
+    appName = meta.get("appName")
+    appType = meta.get("appType")
+    modules = meta.get("modules", [])
+    
+    if not isinstance(modules, list) or len(modules) == 0:
+        log_error("Metadata 'modules' key must be a non-empty array.")
+        return False
+        
+    for idx, mod in enumerate(modules):
+        m_prefix = f"Module[{idx}]"
+        required_mod_keys = ["name", "type", "path", "status"]
+        for key in required_mod_keys:
+            if key not in mod:
+                log_error(f"{m_prefix} is missing key: '{key}'")
+                success = False
+        
+        if not success:
+            continue
+            
+        m_name = mod.get("name")
+        m_type = mod.get("type")
+        m_path = mod.get("path")
+        m_status = mod.get("status")
+        
+        valid_types = ["chrome-extension", "android-app", "flutter-app"]
+        if m_type not in valid_types:
+            log_error(f"{m_prefix} ({m_name}) has invalid type '{m_type}'. Must be one of: {valid_types}")
+            success = False
+            
+        full_mod_path = os.path.normpath(os.path.join(repo_path, m_path))
+        if not os.path.exists(full_mod_path):
+            log_error(f"{m_prefix} ({m_name}) has path '{m_path}' which does not exist on disk.")
+            success = False
+            
+        valid_statuses = ["draft", "beta", "published", "unpublished"]
+        if m_status not in valid_statuses:
+            log_error(f"{m_prefix} ({m_name}) has invalid status '{m_status}'. Must be one of: {valid_statuses}")
+            success = False
+            
+        if m_status in ["published", "beta"]:
+            if not mod.get("storeId"):
+                log_error(f"{m_prefix} ({m_name}) is status '{m_status}' but is missing 'storeId'")
+                success = False
+            if not mod.get("storeUrl"):
+                log_error(f"{m_prefix} ({m_name}) is status '{m_status}' but is missing 'storeUrl'")
+                success = False
+                
+        if m_type == "chrome-extension":
+            cws = mod.get("cwsListing")
+            if not cws or not isinstance(cws, dict):
+                log_error(f"{m_prefix} ({m_name}) is a chrome-extension but is missing 'cwsListing' object.")
+                success = False
+            else:
+                required_cws_keys = ["shortDescription", "detailedDescription", "category", "singlePurpose", "privacyPolicyUrl"]
+                for key in required_cws_keys:
+                    if not cws.get(key):
+                        log_error(f"{m_prefix} ({m_name}) 'cwsListing' is missing or has empty key: '{key}'")
+                        success = False
+                        
+        elif m_type in ["android-app", "flutter-app"]:
+            play = mod.get("playStoreListing")
+            if not play or not isinstance(play, dict):
+                log_error(f"{m_prefix} ({m_name}) is an android/flutter app but is missing 'playStoreListing' object.")
+                success = False
+            else:
+                required_play_keys = ["title", "shortDescription", "fullDescription", "category", "privacyPolicyUrl"]
+                for key in required_play_keys:
+                    if not play.get(key):
+                        log_error(f"{m_prefix} ({m_name}) 'playStoreListing' is missing or has empty key: '{key}'")
+                        success = False
+
+    if success:
+        log_success(f"app-metadata.json is valid and compliant for app: {appName} ({appType})")
+    return success
+
 def main():
     parser = argparse.ArgumentParser(description="PR Compliance and Assets Release Standards Validator")
     parser.add_argument("--path", default=".", help="Root path of the repository to validate")
@@ -189,24 +413,30 @@ def main():
     print(f"Target Repository : {repo_path}")
     print(f"Project Type      : {args.type}")
     
+    # Resolve layout dynamically if set to default '.' for extensions
+    ext_dir = args.ext_dir
+    if args.type == "chrome-extension" and ext_dir == ".":
+        if os.path.exists(os.path.join(repo_path, "extension", "manifest.json")):
+            ext_dir = "extension"
+        elif os.path.exists(os.path.join(repo_path, "chrome-extension", "manifest.json")):
+            ext_dir = "chrome-extension"
+            
+    # Step 0: Validate app-metadata.json
+    print("\n🔍 Validating app-metadata.json compliance...")
+    meta_success = validate_app_metadata(repo_path, args.type, ext_dir)
+    if not meta_success:
+        print("====================================================")
+        print("❌ FAILED: Metadata check did not pass compliance. Review the errors above.")
+        sys.exit(1)
+    
+    # Continue with regular checks
     if args.type == "chrome-extension":
-        # Resolve layout dynamically if set to default '.'
-        ext_dir = args.ext_dir
-        if ext_dir == ".":
-            if os.path.exists(os.path.join(repo_path, "extension", "manifest.json")):
-                ext_dir = "extension"
-            elif os.path.exists(os.path.join(repo_path, "chrome-extension", "manifest.json")):
-                ext_dir = "chrome-extension"
-        
         print(f"Extension Dir     : {ext_dir}")
         success = validate_chrome_extension(repo_path, ext_dir)
-        
     elif args.type == "flutter-app":
         success = validate_flutter_app(repo_path)
-        
     elif args.type == "android-app":
         success = validate_android_app(repo_path)
-        
     else:
         log_error(f"Unsupported project type: {args.type}")
         success = False
