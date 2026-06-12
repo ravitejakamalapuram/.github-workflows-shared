@@ -28,11 +28,11 @@ runs:
   steps:
     - name: Verify and measure file size
       id: check
+      env:
+        FILE_PATH: ${{ inputs.file-path }}
+        MAX_SIZE_MB: ${{ inputs.max-size-mb }}
+        FAIL_ON_EXCEED: ${{ inputs.fail-on-exceed }}
       run: |
-        FILE_PATH="${{ inputs.file-path }}"
-        MAX_SIZE_MB="${{ inputs.max-size-mb }}"
-        FAIL_ON_EXCEED="${{ inputs.fail-on-exceed }}"
-
         if [ ! -f "$FILE_PATH" ]; then
           echo "::error::File not found: $FILE_PATH"
           exit 1
