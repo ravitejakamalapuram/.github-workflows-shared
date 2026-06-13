@@ -29,3 +29,7 @@
 ## 2024-06-06 - Batching jq empty validation
 **Learning:** `jq empty` can natively validate multiple JSON files at once and will return a non-zero exit code if any file is invalid. Wrapping it in a shell loop via `xargs` and `sh -c` introduces unnecessary process overhead per file.
 **Action:** Pass multiple files directly to `jq empty` via `xargs -0 jq empty` instead of wrapping it in a shell `for` loop to avoid subshell overhead.
+
+## 2024-06-06 - [Batching Node.js Validations Across CPU Cores]
+**Learning:** Using `while read f; do node -c "$f"; done` to validate JavaScript syntax sequentially introduces massive performance overhead due to the V8 engine's startup time per file. Attempting to optimize this by running a single `node -e` script that parses all files via `vm.Script` fails to support ES modules natively, causing functional regressions in modern environments.
+**Action:** Always optimize large sets of slow shell commands by parallelizing across multiple CPU cores using `xargs -P <cores>` instead of sequential loops or complex runtime emulation. Example: `find ... -print0 | xargs -0 -P 8 sh -c 'for f; do node -c "$f"; done' sh`. Ensure `xargs` options are POSIX-compliant (e.g., omitting the GNU-only `-r` flag) for broader cross-platform runner compatibility.
