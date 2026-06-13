@@ -751,7 +751,8 @@ INDEX_HTML = """<!DOCTYPE html>
             background: rgba(255, 255, 255, 0.1);
         }
 
-        .btn:disabled, .btn[aria-disabled="true"] {
+        .btn:disabled,
+        .btn[aria-disabled="true"] {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none !important;
@@ -1050,7 +1051,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             <div class="btn-row">
                 <button class="btn btn-secondary" onclick="goToStep(2)">&larr; Back</button>
-                <button class="btn btn-primary" id="btn-to-step-4" onclick="if(this.getAttribute('aria-disabled') === 'true') return; validateStep3()" aria-disabled="true" title="A valid extension ID is required">
+                <button class="btn btn-primary" id="btn-to-step-4" onclick="if(this.getAttribute('aria-disabled') === 'true') return; validateStep3()" aria-disabled="true" title="Please provide a valid Extension ID first">
                     Proceed &rarr;
                 </button>
             </div>
@@ -1232,7 +1233,8 @@ INDEX_HTML = """<!DOCTYPE html>
             
             // Set target directory on step 2 & 3
             document.getElementById("btn-to-step-2").onclick = function() {
-                if (this.getAttribute("aria-disabled") !== "true") goToStep(2);
+                if (this.getAttribute("aria-disabled") === "true") return;
+                goToStep(2);
             };
         }
 
@@ -1338,7 +1340,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 state.credentials.extension_id = "";
                 badge.style.display = "none";
                 btn.setAttribute("aria-disabled", "true");
-                btn.setAttribute("title", "A valid extension ID is required");
+                btn.setAttribute("title", "Please provide a valid Extension ID first");
             }
         }
 
