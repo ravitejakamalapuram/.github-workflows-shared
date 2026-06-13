@@ -142,12 +142,8 @@ runs:
     - name: Check JavaScript Syntax
       run: |
         echo "::group::Checking JavaScript Syntax"
-        find ${{ inputs.extension-dir }} -name "*.js" | while read f; do
-          if ! node -c "$f" 2>/dev/null; then
-            echo "::error::Syntax error in $f"
-            exit 1
-          fi
-        done
+        # ⚡ Bolt Optimization: Parallelize node -c syntax checks across CPU cores to reduce CI time
+        find ${{ inputs.extension-dir }} -name "*.js" -print0 | xargs -0 -n 1 -P 4 sh -c 'node -c "$1" 2>/dev/null || { echo "::error::Syntax error in $1"; exit 255; }' sh
         echo "✅ All JS files pass syntax check"
         echo "::endgroup::"
       shell: bash
