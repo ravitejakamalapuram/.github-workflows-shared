@@ -904,6 +904,11 @@ INDEX_HTML = """<!DOCTYPE html>
             color: var(--text-primary);
             background: rgba(255, 255, 255, 0.1);
         }
+
+        .copy-btn:focus-visible {
+            outline: 2px solid var(--accent-cyan);
+            outline-offset: 2px;
+        }
     </style>
 </head>
 <body>
