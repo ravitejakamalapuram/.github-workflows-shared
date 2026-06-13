@@ -33,11 +33,13 @@ runs:
   steps:
     - name: Check required extension files
       id: validate
+      env:
+        EXT_DIR: ${{ inputs.extension-dir }}
+        EXPECTED_MANIFEST_VERSION: ${{ inputs.manifest-version }}
+        STRICT_MODE: ${{ inputs.strict-mode }}
       run: |
         set -e
         echo "::group::Validating Extension Structure"
-        
-        EXT_DIR="${{ inputs.extension-dir }}"
         
         # Check manifest.json exists
         if [ ! -f "$EXT_DIR/manifest.json" ]; then
@@ -57,9 +59,9 @@ runs:
         ACTUAL_VERSION=$(jq -r '.manifest_version' "$EXT_DIR/manifest.json")
         echo "Detected manifest_version: $ACTUAL_VERSION"
         
-        if [ "$ACTUAL_VERSION" != "${{ inputs.manifest-version }}" ]; then
-          MSG="Expected manifest_version ${{ inputs.manifest-version }}, found $ACTUAL_VERSION"
-          if [ "${{ inputs.strict-mode }}" == "true" ]; then
+        if [ "$ACTUAL_VERSION" != "$EXPECTED_MANIFEST_VERSION" ]; then
+          MSG="Expected manifest_version $EXPECTED_MANIFEST_VERSION, found $ACTUAL_VERSION"
+          if [ "$STRICT_MODE" == "true" ]; then
             echo "::error::$MSG"
             exit 1
           else
@@ -81,9 +83,9 @@ runs:
     
     - name: Extract Manifest Info
       id: manifest-info
+      env:
+        EXT_DIR: ${{ inputs.extension-dir }}
       run: |
-        EXT_DIR="${{ inputs.extension-dir }}"
-        
         # ⚡ Bolt Optimization: Batch jq queries to read the file once instead of multiple times
         IFS=$'\t' read -r VERSION NAME EXT_VERSION < <(jq -r '[(.manifest_version // "Unknown"), (.name // "Unknown"), (.version // "Unknown")] | @tsv' "$EXT_DIR/manifest.json")
         
@@ -96,16 +98,17 @@ runs:
     
     - name: Validate Icon Files
       if: inputs.check-icons == 'true'
+      env:
+        EXT_DIR: ${{ inputs.extension-dir }}
       run: |
-        EXT_DIR="${{ inputs.extension-dir }}"
-        
         echo "::group::Validating Icon Files"
         python3 << 'PYTHON_SCRIPT'
         import json
         import os
         import sys
 
-        manifest_path = "${{ inputs.extension-dir }}/manifest.json"
+        ext_dir = os.environ.get('EXT_DIR')
+        manifest_path = os.path.join(ext_dir, "manifest.json")
         with open(manifest_path) as f:
             data = json.load(f)
 
@@ -114,7 +117,7 @@ runs:
         # Check icons
         if 'icons' in data:
             for size, path in data['icons'].items():
-                full_path = os.path.join("${{ inputs.extension-dir }}", path)
+                full_path = os.path.join(ext_dir, path)
                 if not os.path.exists(full_path):
                     missing_icons.append(f"icons.{size}: {path}")
 
@@ -124,7 +127,7 @@ runs:
             icons = data[action_key]['default_icon']
             if isinstance(icons, dict):
                 for size, path in icons.items():
-                    full_path = os.path.join("${{ inputs.extension-dir }}", path)
+                    full_path = os.path.join(ext_dir, path)
                     if not os.path.exists(full_path):
                         missing_icons.append(f"{action_key}.default_icon.{size}: {path}")
 
@@ -140,17 +143,22 @@ runs:
       shell: bash
     
     - name: Check JavaScript Syntax
+      env:
+        EXT_DIR: ${{ inputs.extension-dir }}
       run: |
         echo "::group::Checking JavaScript Syntax"
         # ⚡ Bolt Optimization: Parallelize node -c syntax checks across CPU cores to reduce CI time
-        find ${{ inputs.extension-dir }} -name "*.js" -print0 | xargs -0 -n 1 -P 4 sh -c 'node -c "$1" 2>/dev/null || { echo "::error::Syntax error in $1"; exit 255; }' sh
+        # Using env var $EXT_DIR to prevent command injection
+        find "$EXT_DIR" -name "*.js" -print0 | xargs -0 -n 1 -P 4 sh -c 'node -c "$1" 2>/dev/null || { echo "::error::Syntax error in $1"; exit 255; }' sh
         echo "✅ All JS files pass syntax check"
         echo "::endgroup::"
       shell: bash
     
     - name: Validate Release Assets and Compliance
+      env:
+        EXT_DIR: ${{ inputs.extension-dir }}
       run: |
-        python3 ${{ github.action_path }}/../../../scripts/validate-release-assets.py --path . --type chrome-extension --ext-dir "${{ inputs.extension-dir }}"
+        python3 ${{ github.action_path }}/../../../scripts/validate-release-assets.py --path . --type chrome-extension --ext-dir "$EXT_DIR"
       shell: bash
 
 branding:
