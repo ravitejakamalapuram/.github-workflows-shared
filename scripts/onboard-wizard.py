@@ -965,7 +965,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             <div class="btn-row">
                 <div></div>
-                <button class="btn btn-primary" id="btn-to-step-2" aria-disabled="true" title="Please select a project first">
+                <button class="btn btn-primary" id="btn-to-step-2" aria-disabled="true" title="Select a project from the list above to proceed">
                     Proceed to Step 2 &rarr;
                 </button>
             </div>
@@ -1230,6 +1230,7 @@ INDEX_HTML = """<!DOCTYPE html>
             } else {
                 text.innerHTML = `⚠️ Target project: <strong>${repo.name}</strong> has no <code>manifest.json</code>. The onboarding script will generate a new boilerplate popup extension in `/extension` folder.`;
             }
+<<<<<<< HEAD
             
             // Set target directory on step 2 & 3
             document.getElementById("btn-to-step-2").onclick = function() {
