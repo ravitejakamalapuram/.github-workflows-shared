@@ -751,7 +751,7 @@ INDEX_HTML = """<!DOCTYPE html>
             background: rgba(255, 255, 255, 0.1);
         }
 
-        .btn:disabled {
+        .btn:disabled, .btn[aria-disabled="true"] {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none !important;
@@ -964,7 +964,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             <div class="btn-row">
                 <div></div>
-                <button class="btn btn-primary" id="btn-to-step-2" disabled>
+                <button class="btn btn-primary" id="btn-to-step-2" aria-disabled="true" title="Please select a project first">
                     Proceed to Step 2 &rarr;
                 </button>
             </div>
@@ -1050,7 +1050,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             <div class="btn-row">
                 <button class="btn btn-secondary" onclick="goToStep(2)">&larr; Back</button>
-                <button class="btn btn-primary" id="btn-to-step-4" onclick="validateStep3()" disabled>
+                <button class="btn btn-primary" id="btn-to-step-4" onclick="if(this.getAttribute('aria-disabled') === 'true') return; validateStep3()" aria-disabled="true" title="A valid extension ID is required">
                     Proceed &rarr;
                 </button>
             </div>
@@ -1077,7 +1077,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             <div class="btn-row" id="final-btn-row">
                 <button class="btn btn-secondary" id="btn-final-back" onclick="goToStep(3)">&larr; Back</button>
-                <button class="btn btn-primary" id="btn-provision-secrets" onclick="provisionSecrets()" disabled>
+                <button class="btn btn-primary" id="btn-provision-secrets" onclick="if(this.getAttribute('aria-disabled') === 'true') return; provisionSecrets()" aria-disabled="true" title="Please authorize with Google first">
                     🚀 Set Secrets in GitHub Repository
                 </button>
             </div>
@@ -1221,7 +1221,8 @@ INDEX_HTML = """<!DOCTYPE html>
             const text = document.getElementById("onboard-status-text");
 
             details.style.display = "block";
-            btn.disabled = false;
+            btn.removeAttribute("aria-disabled");
+            btn.removeAttribute("title");
 
             if (repo.is_extension) {
                 text.innerHTML = `🎯 Target project: <strong>${repo.name}</strong> (${repo.ext_dir}). Reusable workflow will bind build actions to this directory.`;
@@ -1230,7 +1231,9 @@ INDEX_HTML = """<!DOCTYPE html>
             }
             
             // Set target directory on step 2 & 3
-            document.getElementById("btn-to-step-2").onclick = () => goToStep(2);
+            document.getElementById("btn-to-step-2").onclick = function() {
+                if (this.getAttribute("aria-disabled") !== "true") goToStep(2);
+            };
         }
 
         function goToStep(stepNum) {
@@ -1327,11 +1330,13 @@ INDEX_HTML = """<!DOCTYPE html>
                 display.innerText = match[1];
                 badge.style.display = "flex";
                 badge.className = "alert alert-info";
-                btn.disabled = false;
+                btn.removeAttribute("aria-disabled");
+                btn.removeAttribute("title");
             } else {
                 state.credentials.extension_id = "";
                 badge.style.display = "none";
-                btn.disabled = true;
+                btn.setAttribute("aria-disabled", "true");
+                btn.setAttribute("title", "A valid extension ID is required");
             }
         }
 
@@ -1406,7 +1411,8 @@ INDEX_HTML = """<!DOCTYPE html>
                             // Update UI
                             text.innerHTML = `<span class="oauth-success-badge">✓ Google Account Connected!</span> Refresh Token captured.`;
                             btn.style.display = "none";
-                            nextBtn.disabled = false;
+                            nextBtn.removeAttribute("aria-disabled");
+                            nextBtn.removeAttribute("title");
                         } else if (data.status === "error") {
                             clearInterval(pollInterval);
                             text.innerText = "OAuth Failed: " + data.error;
@@ -1425,7 +1431,7 @@ INDEX_HTML = """<!DOCTYPE html>
             const finalBtn = document.getElementById("btn-provision-secrets");
             const backBtn = document.getElementById("btn-final-back");
 
-            finalBtn.disabled = true;
+            finalBtn.setAttribute("aria-disabled", "true");
             backBtn.disabled = true;
             alertBox.style.display = "flex";
             alertBox.className = "alert alert-info";
@@ -1457,14 +1463,14 @@ INDEX_HTML = """<!DOCTYPE html>
                 } else {
                     alertBox.className = "alert alert-error";
                     alertBox.innerText = "Failed to upload secrets: " + data.error;
-                    finalBtn.disabled = false;
+                    finalBtn.removeAttribute("aria-disabled");
                     backBtn.disabled = false;
                 }
             })
             .catch(err => {
                 alertBox.className = "alert alert-error";
                 alertBox.innerText = "Connection error setting secrets: " + err;
-                finalBtn.disabled = false;
+                finalBtn.removeAttribute("aria-disabled");
                 backBtn.disabled = false;
             });
         }
