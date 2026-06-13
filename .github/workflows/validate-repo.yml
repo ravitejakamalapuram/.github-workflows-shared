@@ -106,7 +106,7 @@ jobs:
       - name: Validate JSON Files
         run: |
           echo "Validating JSON config files..."
-          find config standards -name "*.json" -print0 | xargs -0 sh -c 'for file; do jq empty "$file" || exit 255; done' sh
+          find config standards -name "*.json" -print0 | xargs -0 jq empty
           echo "✅ All JSON files are valid"
   
   validate-security:

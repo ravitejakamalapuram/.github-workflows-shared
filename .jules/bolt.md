@@ -25,3 +25,7 @@
 ## 2025-10-25 - Avoid Process Spawning Overhead in CI Scripts
 **Learning:** Using `find ... -exec ... {} \;` in GitHub Actions for checking multiple files creates massive overhead because it spawns a new process (e.g., Python runtime, Bash invocation) for every single matched file.
 **Action:** Always use `find ... -print0 | xargs -0 -r ...` to batch operations. For commands like `bash -n` that don't natively process subsequent files properly, wrap them in a short loop via `sh -c 'for script; do bash -n "$script" || exit 255; done' sh`.
+
+## 2024-06-06 - Batching jq empty validation
+**Learning:** `jq empty` can natively validate multiple JSON files at once and will return a non-zero exit code if any file is invalid. Wrapping it in a shell loop via `xargs` and `sh -c` introduces unnecessary process overhead per file.
+**Action:** Pass multiple files directly to `jq empty` via `xargs -0 jq empty` instead of wrapping it in a shell `for` loop to avoid subshell overhead.
