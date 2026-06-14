@@ -415,6 +415,16 @@ def validate_app_metadata(repo_path, expected_type, ext_dir="."):
             meta = json.load(f)
     except Exception as e:
         log_error(f"app-metadata.json is not valid JSON: {e}")
+        print("\n" + "="*80)
+        print("💡 SELF-DOCUMENTING CI/CD FAILURE: INVALID JSON")
+        print("="*80)
+        print("Your 'app-metadata.json' is not valid JSON. Please check syntax (commas, quotes, brackets).")
+        print("Here is a fresh reference template for this project to compare against:")
+        print("-"*80)
+        template = generate_metadata_template(repo_path, expected_type, ext_dir)
+        print(json.dumps(template, indent=2))
+        print("-"*80)
+        print("="*80 + "\n")
         return False
         
     success = True
@@ -425,6 +435,16 @@ def validate_app_metadata(repo_path, expected_type, ext_dir="."):
             success = False
             
     if not success:
+        print("\n" + "="*80)
+        print("💡 SELF-DOCUMENTING CI/CD FAILURE: INVALID METADATA SCHEMA")
+        print("="*80)
+        print("Your 'app-metadata.json' is missing root keys.")
+        print("Here is a fresh reference template for this project:")
+        print("-"*80)
+        template = generate_metadata_template(repo_path, expected_type, ext_dir)
+        print(json.dumps(template, indent=2))
+        print("-"*80)
+        print("="*80 + "\n")
         return False
         
     appName = meta.get("appName")
@@ -438,6 +458,19 @@ def validate_app_metadata(repo_path, expected_type, ext_dir="."):
         
     if not isinstance(modules, list) or len(modules) == 0:
         log_error("Metadata 'modules' key must be a non-empty array.")
+        success = False
+        
+    if not success:
+        print("\n" + "="*80)
+        print("💡 SELF-DOCUMENTING CI/CD FAILURE: INVALID METADATA SCHEMA")
+        print("="*80)
+        print("Your 'app-metadata.json' has invalid appType or modules.")
+        print("Here is a fresh reference template for this project:")
+        print("-"*80)
+        template = generate_metadata_template(repo_path, expected_type, ext_dir)
+        print(json.dumps(template, indent=2))
+        print("-"*80)
+        print("="*80 + "\n")
         return False
         
     for idx, mod in enumerate(modules):
@@ -505,6 +538,18 @@ def validate_app_metadata(repo_path, expected_type, ext_dir="."):
 
     if success:
         log_success(f"app-metadata.json is valid and compliant for app: {appName} ({appType})")
+    else:
+        print("\n" + "="*80)
+        print("💡 SELF-DOCUMENTING CI/CD FAILURE: INVALID METADATA SCHEMA")
+        print("="*80)
+        print("Your 'app-metadata.json' contains validation or schema errors listed above.")
+        print("To assist you, here is a fresh pre-populated reference template generated from your repository's structure:")
+        print("-"*80)
+        template = generate_metadata_template(repo_path, expected_type, ext_dir)
+        print(json.dumps(template, indent=2))
+        print("-"*80)
+        print("Please review the errors, fix your 'app-metadata.json', and commit it to pass compliance.")
+        print("="*80 + "\n")
     return success
 
 def main():
