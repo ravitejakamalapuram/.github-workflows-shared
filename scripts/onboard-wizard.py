@@ -23,8 +23,6 @@ SERVER_CLIENT_ID = None
 SERVER_CLIENT_SECRET = None
 OAUTH_STATE = {"status": "idle", "refresh_token": None, "error": None}
 ACTIVE_BUILDS = {}
-STORE_STATUS_CACHE = {}
-STORE_STATUS_LOCK = threading.Lock()
 
 class WebConsoleHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -411,15 +409,7 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                     with open(meta_path, "r") as f:
                         metadata = json.load(f)
                     metadata_exists = True
-                    if metadata and "modules" in metadata:
-                        for mod in metadata["modules"]:
-                            m_type = mod.get("type")
-                            m_id = mod.get("storeId")
-                            if m_type and m_id:
-                                with STORE_STATUS_LOCK:
-                                    cached_status = STORE_STATUS_CACHE.get((m_type, m_id))
-                                if cached_status:
-                                    mod["status"] = cached_status
+                    pass
                 except Exception:
                     pass
             
@@ -2762,89 +2752,10 @@ INDEX_HTML = """<!DOCTYPE html>
 </html>
 """
 
-def check_store_status_live(mod_type, store_id):
-    if not store_id:
-        return "draft"
-    try:
-        if mod_type == "chrome-extension":
-            url = f"https://chromewebstore.google.com/detail/{store_id}"
-        elif mod_type in ["android-app", "flutter-app"]:
-            url = f"https://play.google.com/store/apps/details?id={store_id}"
-        else:
-            return "draft"
-            
-        req = urllib.request.Request(
-            url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-        )
-        with urllib.request.urlopen(req, timeout=3) as response:
-            if response.getcode() == 200:
-                html = response.read().decode('utf-8')
-                title_match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE)
-                if title_match:
-                    title = title_match.group(1).strip()
-                    if mod_type == "chrome-extension":
-                        if title.lower() != "chrome web store" and title != "":
-                            return "published"
-                    elif mod_type in ["android-app", "flutter-app"]:
-                        if "not found" not in title.lower() and title != "":
-                            return "published"
-                else:
-                    return "published"
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return "draft"
-    except Exception:
-        pass
-    return "draft"
-
-def background_store_status_checker():
-    import time
-    # Do an initial check immediately, then check periodically
-    while True:
-        try:
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-            if os.path.exists(base_dir):
-                for name in os.listdir(base_dir):
-                    path = os.path.join(base_dir, name)
-                    if not os.path.isdir(path) or name.startswith('.'):
-                        continue
-                    is_git = os.path.exists(os.path.join(path, ".git"))
-                    if not is_git:
-                        continue
-                    
-                    meta_path = os.path.join(path, "app-metadata.json")
-                    if not os.path.exists(meta_path):
-                        meta_path = os.path.join(path, ".app-metadata.json")
-                    
-                    if os.path.exists(meta_path):
-                        try:
-                            with open(meta_path, "r") as f:
-                                meta = json.load(f)
-                            modules = meta.get("modules", [])
-                            for mod in modules:
-                                m_type = mod.get("type")
-                                m_id = mod.get("storeId")
-                                if m_type and m_id:
-                                    status = check_store_status_live(m_type, m_id)
-                                    if status:
-                                        with STORE_STATUS_LOCK:
-                                            STORE_STATUS_CACHE[(m_type, m_id)] = status
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-        # Sleep for 1 hour before checking again
-        time.sleep(3600)
-
 def main():
     print("====================================================")
     print("🚀 Starting Saturn App Console & Registry Web Server...")
     print("====================================================")
-    
-    # Start background store status checking thread
-    checker_thread = threading.Thread(target=background_store_status_checker, daemon=True)
-    checker_thread.start()
     
     server = HTTPServer(('localhost', SERVER_PORT), WebConsoleHandler)
     
