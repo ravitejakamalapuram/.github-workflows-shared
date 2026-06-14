@@ -23,6 +23,8 @@ SERVER_CLIENT_ID = None
 SERVER_CLIENT_SECRET = None
 OAUTH_STATE = {"status": "idle", "refresh_token": None, "error": None}
 ACTIVE_BUILDS = {}
+STORE_STATUS_CACHE = {}
+STORE_STATUS_LOCK = threading.Lock()
 
 class WebConsoleHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -409,26 +411,82 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                     with open(meta_path, "r") as f:
                         metadata = json.load(f)
                     metadata_exists = True
+                    if metadata and "modules" in metadata:
+                        for mod in metadata["modules"]:
+                            m_type = mod.get("type")
+                            m_id = mod.get("storeId")
+                            if m_type and m_id:
+                                with STORE_STATUS_LOCK:
+                                    cached_status = STORE_STATUS_CACHE.get((m_type, m_id))
+                                if cached_status:
+                                    mod["status"] = cached_status
                 except Exception:
                     pass
             
             # Fallback type inference
-            inferred_type = "unknown"
-            ext_dir = None
-            
+            chrome_paths = []
             if os.path.exists(os.path.join(path, "manifest.json")):
-                inferred_type = "chrome-extension"
-                ext_dir = "."
-            elif os.path.exists(os.path.join(path, "extension", "manifest.json")):
-                inferred_type = "chrome-extension"
-                ext_dir = "extension"
-            elif os.path.exists(os.path.join(path, "chrome-extension", "manifest.json")):
-                inferred_type = "chrome-extension"
-                ext_dir = "chrome-extension"
-            elif os.path.exists(os.path.join(path, "pubspec.yaml")):
-                inferred_type = "flutter-app"
-            elif os.path.exists(os.path.join(path, "app", "build.gradle")) or os.path.exists(os.path.join(path, "build.gradle.kts")):
-                inferred_type = "android-app"
+                chrome_paths.append(".")
+            try:
+                for item in os.listdir(path):
+                    item_path = os.path.join(path, item)
+                    if os.path.isdir(item_path) and not item.startswith('.') and item not in ["node_modules", "build", "gradle", "ios", "android"]:
+                        if os.path.exists(os.path.join(item_path, "manifest.json")):
+                            chrome_paths.append(item)
+            except Exception:
+                pass
+                
+            flutter_paths = []
+            if os.path.exists(os.path.join(path, "pubspec.yaml")):
+                flutter_paths.append(".")
+            try:
+                for item in os.listdir(path):
+                    item_path = os.path.join(path, item)
+                    if os.path.isdir(item_path) and not item.startswith('.') and item not in ["node_modules", "build", "gradle", "ios", "android"]:
+                        if os.path.exists(os.path.join(item_path, "pubspec.yaml")):
+                            flutter_paths.append(item)
+            except Exception:
+                pass
+                
+            android_paths = []
+            def is_android_dir(d):
+                has_gradle = os.path.exists(os.path.join(d, "build.gradle")) or os.path.exists(os.path.join(d, "build.gradle.kts"))
+                has_manifest = os.path.exists(os.path.join(d, "src", "main", "AndroidManifest.xml"))
+                return has_gradle and has_manifest
+                
+            if is_android_dir(path):
+                android_paths.append(".")
+            try:
+                for item in os.listdir(path):
+                    item_path = os.path.join(path, item)
+                    if os.path.isdir(item_path) and not item.startswith('.') and item not in ["node_modules", "build", "gradle", "ios"]:
+                        if is_android_dir(item_path):
+                            android_paths.append(item)
+            except Exception:
+                pass
+                
+            total_modules = len(chrome_paths) + len(flutter_paths) + len(android_paths)
+            
+            inferred_type = "unknown"
+            ext_dir = "."
+            if total_modules > 1:
+                inferred_type = "multi-module"
+                if chrome_paths:
+                    ext_dir = chrome_paths[0]
+                elif flutter_paths:
+                    ext_dir = flutter_paths[0]
+                elif android_paths:
+                    ext_dir = android_paths[0]
+            elif total_modules == 1:
+                if chrome_paths:
+                    inferred_type = "chrome-extension"
+                    ext_dir = chrome_paths[0]
+                elif flutter_paths:
+                    inferred_type = "flutter-app"
+                    ext_dir = flutter_paths[0]
+                elif android_paths:
+                    inferred_type = "android-app"
+                    ext_dir = android_paths[0]
                 
             app_type = metadata.get("appType", inferred_type) if metadata else inferred_type
             app_name = metadata.get("appName", name) if metadata else name
@@ -567,114 +625,216 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
             })
         return assets
 
+
+
     def generate_metadata_template_internal(self, repo_path, expected_type, ext_dir="."):
         appName = os.path.basename(repo_path)
+        repo_basename = os.path.basename(repo_path)
         description = "A premium application."
-        version = "1.0.0"
         
-        if expected_type == "chrome-extension":
-            manifest_path = os.path.join(repo_path, ext_dir, "manifest.json")
+        # Scan modules dynamically
+        chrome_paths = []
+        if os.path.exists(os.path.join(repo_path, "manifest.json")):
+            chrome_paths.append(".")
+        try:
+            for item in os.listdir(repo_path):
+                item_path = os.path.join(repo_path, item)
+                if os.path.isdir(item_path) and not item.startswith('.') and item not in ["node_modules", "build", "gradle", "ios", "android"]:
+                    if os.path.exists(os.path.join(item_path, "manifest.json")):
+                        chrome_paths.append(item)
+        except Exception:
+            pass
+            
+        flutter_paths = []
+        if os.path.exists(os.path.join(repo_path, "pubspec.yaml")):
+            flutter_paths.append(".")
+        try:
+            for item in os.listdir(repo_path):
+                item_path = os.path.join(repo_path, item)
+                if os.path.isdir(item_path) and not item.startswith('.') and item not in ["node_modules", "build", "gradle", "ios", "android"]:
+                    if os.path.exists(os.path.join(item_path, "pubspec.yaml")):
+                        flutter_paths.append(item)
+        except Exception:
+            pass
+            
+        android_paths = []
+        def is_android_dir(d):
+            has_gradle = os.path.exists(os.path.join(d, "build.gradle")) or os.path.exists(os.path.join(d, "build.gradle.kts"))
+            has_manifest = os.path.exists(os.path.join(d, "src", "main", "AndroidManifest.xml"))
+            return has_gradle and has_manifest
+            
+        if is_android_dir(repo_path):
+            android_paths.append(".")
+        try:
+            for item in os.listdir(repo_path):
+                item_path = os.path.join(repo_path, item)
+                if os.path.isdir(item_path) and not item.startswith('.') and item not in ["node_modules", "build", "gradle", "ios"]:
+                    if is_android_dir(item_path):
+                        android_paths.append(item)
+        except Exception:
+            pass
+            
+        total_modules = len(chrome_paths) + len(flutter_paths) + len(android_paths)
+        modules = []
+        
+        # 1. Chrome Extension Modules
+        for cp in chrome_paths:
+            manifest_path = os.path.join(repo_path, cp, "manifest.json")
+            mod_appName = appName
+            mod_description = "Chrome Extension."
             if os.path.exists(manifest_path):
                 try:
                     with open(manifest_path, "r") as f:
                         manifest = json.load(f)
-                    appName = manifest.get("name", appName)
-                    description = manifest.get("description", description)
-                    version = manifest.get("version", version)
+                    mod_appName = manifest.get("name", mod_appName)
+                    mod_description = manifest.get("description", mod_description)
                 except Exception:
                     pass
-                    
-            return {
-                "appName": appName,
-                "appType": "chrome-extension",
-                "repoName": os.path.basename(repo_path),
-                "description": description,
-                "modules": [
-                    {
-                      "name": "Chrome Extension",
-                      "type": "chrome-extension",
-                      "path": ext_dir,
-                      "status": "draft",
-                      "storeId": "",
-                      "storeUrl": "",
-                      "developerConsoleUrl": "https://chrome.google.com/webstore/devconsole",
-                      "buildScript": "zip -r initial-package.zip " + ext_dir,
-                      "artifactPath": "initial-package.zip",
-                      "cwsListing": {
-                        "shortDescription": description[:130] if description else "Short description here.",
-                        "detailedDescription": description or "Detailed description here.",
-                        "category": "productivity",
-                        "singlePurpose": description[:70] if description else "Single purpose here.",
-                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
-                      }
-                    }
-                ]
-            }
-        elif expected_type == "flutter-app":
-            pubspec_path = os.path.join(repo_path, "pubspec.yaml")
+            modules.append({
+                "name": f"{mod_appName} (Chrome Extension)" if cp != "." else mod_appName,
+                "type": "chrome-extension",
+                "path": cp,
+                "status": "draft",
+                "storeId": "",
+                "storeUrl": "",
+                "developerConsoleUrl": "https://chrome.google.com/webstore/devconsole",
+                "buildScript": "npm run build" if cp == "." else f"zip -r initial-package.zip {cp}",
+                "artifactPath": "initial-package.zip",
+                "cwsListing": {
+                    "shortDescription": mod_description[:130] if mod_description else "Short description here.",
+                    "detailedDescription": mod_description or "Detailed description here.",
+                    "category": "productivity",
+                    "singlePurpose": mod_description[:70] if mod_description else "Single purpose here.",
+                    "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{repo_basename}/privacy.html"
+                }
+            })
+            
+        # 2. Flutter Modules
+        for fp in flutter_paths:
+            pubspec_path = os.path.join(repo_path, fp, "pubspec.yaml")
+            mod_appName = appName
+            mod_description = "Flutter app."
             if os.path.exists(pubspec_path):
                 try:
                     with open(pubspec_path, "r") as f:
                         for line in f:
                             if line.startswith("name:"):
-                                appName = line.split(":")[1].strip()
+                                mod_appName = line.split(":")[1].strip()
                             elif line.startswith("description:"):
-                                description = line.split(":")[1].strip()
+                                mod_description = line.split(":")[1].strip()
                 except Exception:
                     pass
-            return {
-                "appName": appName,
-                "appType": "flutter-app",
-                "repoName": os.path.basename(repo_path),
-                "description": description,
-                "modules": [
-                    {
-                      "name": "Flutter Android App",
-                      "type": "flutter-app",
-                      "path": ".",
-                      "status": "draft",
-                      "storeId": f"com.ravitejakamalapuram.{appName.lower()}",
-                      "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{appName.lower()}",
-                      "developerConsoleUrl": "https://play.google.com/console/u/0/developers",
-                      "buildScript": "flutter build appbundle",
-                      "artifactPath": "build/app/outputs/bundle/release/app-release.aab",
-                      "playStoreListing": {
-                        "title": appName,
-                        "shortDescription": description[:80] if description else "Short description here.",
-                        "fullDescription": description or "Full description here.",
-                        "category": "utilities",
-                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
-                      }
+            modules.append({
+                "name": f"{mod_appName} (Flutter App)" if fp != "." else mod_appName,
+                "type": "flutter-app",
+                "path": fp,
+                "status": "draft",
+                "storeId": f"com.ravitejakamalapuram.{mod_appName.lower()}",
+                "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{mod_appName.lower()}",
+                "developerConsoleUrl": "https://play.google.com/console/u/0/developers",
+                "buildScript": "flutter build appbundle" if fp == "." else f"cd {fp} && flutter build appbundle",
+                "artifactPath": os.path.normpath(os.path.join(fp, "build/app/outputs/bundle/release/app-release.aab")),
+                "playStoreListing": {
+                    "title": mod_appName,
+                    "shortDescription": mod_description[:80] if mod_description else "Short description here.",
+                    "fullDescription": mod_description or "Full description here.",
+                    "category": "utilities",
+                    "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{repo_basename}/privacy.html"
+                }
+            })
+            
+        # 3. Android Modules
+        for ap in android_paths:
+            mod_appName = appName
+            modules.append({
+                "name": f"{mod_appName} (Android App)" if ap != "." else mod_appName,
+                "type": "android-app",
+                "path": ap,
+                "status": "draft",
+                "storeId": f"com.ravitejakamalapuram.{mod_appName.lower()}",
+                "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{mod_appName.lower()}",
+                "developerConsoleUrl": "https://play.google.com/console/u/0/developers",
+                "buildScript": "./gradlew assembleRelease" if ap == "." else f"./gradlew :{ap}:assembleRelease",
+                "artifactPath": os.path.normpath(os.path.join(ap, "build/outputs/apk/release/app-release.apk" if ap != "." else "app/build/outputs/apk/release/app-release.apk")),
+                "playStoreListing": {
+                    "title": mod_appName,
+                    "shortDescription": "Short description here.",
+                    "fullDescription": "Full description here.",
+                    "category": "utilities",
+                    "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{repo_basename}/privacy.html"
+                }
+            })
+            
+        # Fallback if no modules detected
+        if not modules:
+            if expected_type == "chrome-extension":
+                modules.append({
+                    "name": "Chrome Extension",
+                    "type": "chrome-extension",
+                    "path": ext_dir,
+                    "status": "draft",
+                    "storeId": "",
+                    "storeUrl": "",
+                    "developerConsoleUrl": "https://chrome.google.com/webstore/devconsole",
+                    "buildScript": "zip -r initial-package.zip " + ext_dir,
+                    "artifactPath": "initial-package.zip",
+                    "cwsListing": {
+                        "shortDescription": "Short description here.",
+                        "detailedDescription": "Detailed description here.",
+                        "category": "productivity",
+                        "singlePurpose": "Single purpose here.",
+                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{repo_basename}/privacy.html"
                     }
-                ]
-            }
-        else: # android-app
-            return {
-                "appName": appName,
-                "appType": "android-app",
-                "repoName": os.path.basename(repo_path),
-                "description": "Android application.",
-                "modules": [
-                    {
-                      "name": "Android Application",
-                      "type": "android-app",
-                      "path": ".",
-                      "status": "draft",
-                      "storeId": f"com.ravitejakamalapuram.{appName.lower()}",
-                      "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{appName.lower()}",
-                      "developerConsoleUrl": "https://play.google.com/console/u/0/developers",
-                      "buildScript": "./gradlew assembleRelease",
-                      "artifactPath": "app/build/outputs/apk/release/app-release.apk",
-                      "playStoreListing": {
+                })
+            elif expected_type == "flutter-app":
+                modules.append({
+                    "name": "Flutter Android App",
+                    "type": "flutter-app",
+                    "path": ".",
+                    "status": "draft",
+                    "storeId": f"com.ravitejakamalapuram.{appName.lower()}",
+                    "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{appName.lower()}",
+                    "developerConsoleUrl": "https://play.google.com/console/u/0/developers",
+                    "buildScript": "flutter build appbundle",
+                    "artifactPath": "build/app/outputs/bundle/release/app-release.aab",
+                    "playStoreListing": {
                         "title": appName,
                         "shortDescription": "Short description here.",
                         "fullDescription": "Full description here.",
                         "category": "utilities",
-                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{os.path.basename(repo_path)}/privacy.html"
-                      }
+                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{repo_basename}/privacy.html"
                     }
-                ]
-            }
+                })
+            else:
+                modules.append({
+                    "name": "Android Application",
+                    "type": "android-app",
+                    "path": ".",
+                    "status": "draft",
+                    "storeId": f"com.ravitejakamalapuram.{appName.lower()}",
+                    "storeUrl": f"https://play.google.com/store/apps/details?id=com.ravitejakamalapuram.{appName.lower()}",
+                    "developerConsoleUrl": "https://play.google.com/console/u/0/developers",
+                    "buildScript": "./gradlew assembleRelease",
+                    "artifactPath": "app/build/outputs/apk/release/app-release.apk",
+                    "playStoreListing": {
+                        "title": appName,
+                        "shortDescription": "Short description here.",
+                        "fullDescription": "Full description here.",
+                        "category": "utilities",
+                        "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{repo_basename}/privacy.html"
+                    }
+                })
+
+        # Resolve appType
+        appType = "multi-module" if total_modules > 1 else (modules[0]["type"] if modules else expected_type)
+
+        return {
+            "appName": appName,
+            "appType": appType,
+            "repoName": repo_basename,
+            "description": description,
+            "modules": modules
+        }
 
     def serve_oauth_feedback(self, is_success, message):
         self.send_response(200)
@@ -2276,7 +2436,7 @@ INDEX_HTML = """<!DOCTYPE html>
             tempDiv.innerText = text;
             const escaped = tempDiv.innerHTML;
             
-            return escaped.split("\n").map(line => {
+            return escaped.split("\\n").map(line => {
                 const lineLower = line.toLowerCase();
                 if (line.startsWith("❌") || lineLower.includes("failed") || lineLower.includes("exception") || lineLower.includes("error")) {
                     return `<span style="color: var(--error); font-weight: 600;">${line}</span>`;
@@ -2286,7 +2446,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     return `<span style="color: var(--accent-cyan); font-weight: 500;">${line}</span>`;
                 }
                 return line;
-            }).join("\n");
+            }).join("\\n");
         }
 
         function triggerBuild() {
@@ -2602,10 +2762,89 @@ INDEX_HTML = """<!DOCTYPE html>
 </html>
 """
 
+def check_store_status_live(mod_type, store_id):
+    if not store_id:
+        return "draft"
+    try:
+        if mod_type == "chrome-extension":
+            url = f"https://chromewebstore.google.com/detail/{store_id}"
+        elif mod_type in ["android-app", "flutter-app"]:
+            url = f"https://play.google.com/store/apps/details?id={store_id}"
+        else:
+            return "draft"
+            
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=3) as response:
+            if response.getcode() == 200:
+                html = response.read().decode('utf-8')
+                title_match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE)
+                if title_match:
+                    title = title_match.group(1).strip()
+                    if mod_type == "chrome-extension":
+                        if title.lower() != "chrome web store" and title != "":
+                            return "published"
+                    elif mod_type in ["android-app", "flutter-app"]:
+                        if "not found" not in title.lower() and title != "":
+                            return "published"
+                else:
+                    return "published"
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return "draft"
+    except Exception:
+        pass
+    return "draft"
+
+def background_store_status_checker():
+    import time
+    # Do an initial check immediately, then check periodically
+    while True:
+        try:
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            if os.path.exists(base_dir):
+                for name in os.listdir(base_dir):
+                    path = os.path.join(base_dir, name)
+                    if not os.path.isdir(path) or name.startswith('.'):
+                        continue
+                    is_git = os.path.exists(os.path.join(path, ".git"))
+                    if not is_git:
+                        continue
+                    
+                    meta_path = os.path.join(path, "app-metadata.json")
+                    if not os.path.exists(meta_path):
+                        meta_path = os.path.join(path, ".app-metadata.json")
+                    
+                    if os.path.exists(meta_path):
+                        try:
+                            with open(meta_path, "r") as f:
+                                meta = json.load(f)
+                            modules = meta.get("modules", [])
+                            for mod in modules:
+                                m_type = mod.get("type")
+                                m_id = mod.get("storeId")
+                                if m_type and m_id:
+                                    status = check_store_status_live(m_type, m_id)
+                                    if status:
+                                        with STORE_STATUS_LOCK:
+                                            STORE_STATUS_CACHE[(m_type, m_id)] = status
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        # Sleep for 1 hour before checking again
+        time.sleep(3600)
+
 def main():
     print("====================================================")
     print("🚀 Starting Saturn App Console & Registry Web Server...")
     print("====================================================")
+    
+    # Start background store status checking thread
+    checker_thread = threading.Thread(target=background_store_status_checker, daemon=True)
+    checker_thread.start()
     
     server = HTTPServer(('localhost', SERVER_PORT), WebConsoleHandler)
     
