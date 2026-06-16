@@ -33,3 +33,7 @@
 ## 2024-06-06 - [Batching Node.js Validations Across CPU Cores]
 **Learning:** Using `while read f; do node -c "$f"; done` to validate JavaScript syntax sequentially introduces massive performance overhead due to the V8 engine's startup time per file. Attempting to optimize this by running a single `node -e` script that parses all files via `vm.Script` fails to support ES modules natively, causing functional regressions in modern environments.
 **Action:** Always optimize large sets of slow shell commands by parallelizing across multiple CPU cores using `xargs -P <cores>` instead of sequential loops or complex runtime emulation. Example: `find ... -print0 | xargs -0 -P 8 sh -c 'for f; do node -c "$f"; done' sh`. Ensure `xargs` options are POSIX-compliant (e.g., omitting the GNU-only `-r` flag) for broader cross-platform runner compatibility.
+
+## 2025-05-28 - Optimize String Replacement in Shell Scripts
+**Learning:** Using `python3 -c` for simple file string replacements (like placeholder substitution) in bash scripts introduces unnecessary Python interpreter startup overhead.
+**Action:** Always prefer native Unix tools like `sed` (e.g., `sed -i "s/old/new/g" file`) for simple text replacements in bash scripts to maximize performance.

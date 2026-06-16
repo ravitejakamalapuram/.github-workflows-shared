@@ -455,7 +455,9 @@ jobs:
       chrome-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
       chrome-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 EOF
-python3 -c "import sys, os; content=open('$WORKFLOW_FILE').read().replace('EXT_DIR_PLACEHOLDER', os.getenv('EXT_DIR', 'extension')); open('$WORKFLOW_FILE', 'w').write(content)"
+# ⚡ Bolt Optimization: Use sed instead of python3 to avoid Python startup overhead
+# Use '|' as delimiter to safely handle paths containing '/' in EXT_DIR
+sed -i.bak "s|EXT_DIR_PLACEHOLDER|${EXT_DIR:-extension}|g" "$WORKFLOW_FILE" && rm -f "$WORKFLOW_FILE.bak"
 echo -e "  ✅ Generated local workflow ${BOLD}.github/workflows/ci-cd.yml${NC} pointing to the central pipeline"
 
 # --- 4. Package initial draft ZIP ---
