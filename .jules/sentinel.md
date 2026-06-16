@@ -2,3 +2,7 @@
 **Vulnerability:** Command injection vulnerability identified in composite actions. Directly interpolating GitHub Action user inputs (`${{ inputs.* }}`) into bash `run` scripts allows attackers to execute arbitrary shell commands if the input contains malicious payloads (e.g., `; rm -rf /`).
 **Learning:** This repo has numerous reusable composite actions taking user inputs and dynamically constructing commands. Direct substitution evaluates input strings as raw bash logic instead of isolated string values.
 **Prevention:** Always map user inputs (`${{ inputs.* }}`) to environment variables within the `env:` block. Never use them directly via inline string interpolation in bash scripts or `eval` statements. This ensures inputs are safely evaluated as variables.
+## 2024-05-24 - Command Injection via inputs in Action scripts
+**Vulnerability:** User inputs (`${{ inputs.* }}`) were directly interpolated into bash scripts within `composite-actions/flutter/test/action.yml`, which could allow command injection.
+**Learning:** Inline string interpolation of user-controlled variables in shell scripts exposes the system to command execution via crafted payloads.
+**Prevention:** Always map user inputs (`${{ inputs.* }}`) to environment variables within the `env:` block. Never use them directly via inline string interpolation in bash scripts or `eval` statements. This ensures inputs are safely evaluated as variables.
