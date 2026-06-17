@@ -1687,7 +1687,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     <h2>Application Configuration Standard</h2>
                     <p class="panel-subtitle">Edit metadata fields to serve as the single source of truth for CI/CD pipelines and manual onboarding</p>
                     
-                    <div id="save-metadata-success" class="badge badge-success" style="display: none; padding: 10px; width: 100%; justify-content: center; font-size: 12px; margin-bottom: 10px;">
+                    <div id="save-metadata-success" class="badge badge-success" aria-live="polite" style="display: none; padding: 10px; width: 100%; justify-content: center; font-size: 12px; margin-bottom: 10px;">
                         ✓ Metadata saved successfully to app-metadata.json!
                     </div>
 
@@ -1936,7 +1936,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     </ol>
                 </div>
 
-                <div id="secrets-alert-box" class="alert alert-error" style="display: none; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;"></div>
+                <div id="secrets-alert-box" class="alert alert-error" aria-live="polite" style="display: none; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;"></div>
 
                 <div class="form-row" style="margin-bottom: 16px;">
                     <div class="form-group">
