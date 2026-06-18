@@ -455,7 +455,7 @@ jobs:
       chrome-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
       chrome-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 EOF
-python3 -c "import sys, os; content=open('$WORKFLOW_FILE').read().replace('EXT_DIR_PLACEHOLDER', os.getenv('EXT_DIR', 'extension')); open('$WORKFLOW_FILE', 'w').write(content)"
+sed "s|EXT_DIR_PLACEHOLDER|${EXT_DIR:-extension}|g" "$WORKFLOW_FILE" > "$WORKFLOW_FILE.tmp" && mv "$WORKFLOW_FILE.tmp" "$WORKFLOW_FILE"
 echo -e "  ✅ Generated local workflow ${BOLD}.github/workflows/ci-cd.yml${NC} pointing to the central pipeline"
 
 # --- 4. Package initial draft ZIP ---
