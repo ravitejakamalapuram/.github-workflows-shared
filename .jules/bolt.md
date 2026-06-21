@@ -33,3 +33,7 @@
 ## 2024-06-06 - [Batching Node.js Validations Across CPU Cores]
 **Learning:** Using `while read f; do node -c "$f"; done` to validate JavaScript syntax sequentially introduces massive performance overhead due to the V8 engine's startup time per file. Attempting to optimize this by running a single `node -e` script that parses all files via `vm.Script` fails to support ES modules natively, causing functional regressions in modern environments.
 **Action:** Always optimize large sets of slow shell commands by parallelizing across multiple CPU cores using `xargs -P <cores>` instead of sequential loops or complex runtime emulation. Example: `find ... -print0 | xargs -0 -P 8 sh -c 'for f; do node -c "$f"; done' sh`. Ensure `xargs` options are POSIX-compliant (e.g., omitting the GNU-only `-r` flag) for broader cross-platform runner compatibility.
+
+## 2024-06-07 - Avoid inline Python scripts in GitHub Actions Bash Steps
+**Learning:** Using `python3 << 'PYTHON_SCRIPT'` in bash scripts to manipulate or extract data from JSON files forces the CI runner to spawn a Python interpreter, which incurs a significant startup latency overhead. This overhead adds up quickly in repeatedly executed composite actions.
+**Action:** Always replace inline Python scripts used for simple JSON extraction with `jq` and native bash utilities (like `while read` loops). This relies on fast compiled tools and significantly reduces process spawning overhead.
