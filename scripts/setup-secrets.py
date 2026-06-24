@@ -10,6 +10,10 @@ import subprocess
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+# Clean GITHUB_TOKEN from environment to let gh CLI use keychain login
+if "GITHUB_TOKEN" in os.environ:
+    del os.environ["GITHUB_TOKEN"]
+
 CREDENTIALS_PATH = os.path.expanduser("~/.chrome-api-credentials.json")
 
 class OAuthHandler(BaseHTTPRequestHandler):
