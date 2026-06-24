@@ -165,8 +165,34 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
             if not repo_path or not os.path.exists(repo_path):
                 self.send_json_response({"success": False, "error": "Invalid repository path."}, status=400)
                 return
-            assets = self.find_built_assets_internal(repo_path)
+            
+            assets = []
+            for root, dirs, files in os.walk(repo_path):
+                dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ["node_modules", "build", "dist", "out", "gradle"]]
+                for file in files:
+                    if file.lower().endswith(('.zip', '.apk', '.aab')):
+                        abs_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(abs_path, repo_path)
+                        try:
+                            size_bytes = os.path.getsize(abs_path)
+                            size_mb = round(size_bytes / (1024 * 1024), 2)
+                        except Exception:
+                            size_mb = 0.0
+                        assets.append({
+                            "name": file,
+                            "rel_path": rel_path,
+                            "abs_path": abs_path,
+                            "size_mb": size_mb
+                        })
             self.send_json_response({"success": True, "assets": assets})
+            return
+
+        # API: Check Privacy Policy URL Reachability
+        if path == "/api/check-privacy-url":
+            params = urllib.parse.parse_qs(parsed_url.query)
+            url = params.get('url', [None])[0]
+            reachable, err_msg = self.check_url_reachability(url)
+            self.send_json_response({"success": True, "reachable": reachable, "error": err_msg})
             return
 
         # API: Download Asset File or View Image
@@ -227,6 +253,55 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
             req_data = json.loads(post_data) if post_data else {}
         except Exception:
             req_data = {}
+
+        # API: Generate privacy.html
+        if path == "/api/generate-privacy-html":
+            repo_path = req_data.get("path")
+            if not repo_path or not os.path.exists(repo_path):
+                self.send_json_response({"success": False, "error": "Invalid repository path."}, status=400)
+                return
+            
+            try:
+                md_file = os.path.join(repo_path, "PRIVACY.md")
+                if not os.path.exists(md_file):
+                    app_name = os.path.basename(repo_path)
+                    default_md = f"""# Privacy Policy for {app_name}
+
+Last updated: {datetime.now().strftime('%Y-%m-%d')}
+
+## Overview
+We take your privacy seriously. This extension is designed to operate securely and keep your data safe.
+
+## What Data We Collect
+**{app_name} does not collect, store, or transmit any personal data, telemetry, or browsing history.**
+All preferences and user configurations are stored strictly on your local device.
+
+## How Data Is Stored
+All data is stored locally on the device using standard browser storage APIs. No data is uploaded or synced to external servers.
+
+## Third-Party Services
+This extension does not use any third-party services, APIs, analytics platforms, or external tracking services.
+
+## Contact
+If you have any questions or feedback regarding this policy, please open a GitHub Issue in the project repository.
+"""
+                    with open(md_file, "w", encoding="utf-8") as f:
+                        f.write(default_md)
+                
+                with open(md_file, "r", encoding="utf-8") as f:
+                    md_text = f.read()
+                
+                app_name = os.path.basename(repo_path)
+                html_content = self.compile_markdown_to_html(md_text, title=f"Privacy Policy - {app_name}")
+                
+                html_file = os.path.join(repo_path, "privacy.html")
+                with open(html_file, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                
+                self.send_json_response({"success": True, "message": "privacy.html generated successfully."})
+            except Exception as e:
+                self.send_json_response({"success": False, "error": str(e)}, status=500)
+            return
 
         # API: Cache and Start Google OAuth
         if path == "/api/start-oauth":
@@ -396,6 +471,151 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 return res_data.get('refresh_token')
         except Exception:
             return None
+
+    def check_url_reachability(self, url):
+        if not url:
+            return False, "URL is empty"
+        try:
+            req = urllib.request.Request(
+                url, 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/100.0.0.0 Safari/537.36'}
+            )
+            # Try HEAD first
+            req.get_method = lambda: 'HEAD'
+            try:
+                with urllib.request.urlopen(req, timeout=3) as response:
+                    if response.status == 200:
+                        return True, "Reachable"
+            except Exception:
+                # Fallback to GET
+                req.get_method = lambda: 'GET'
+                with urllib.request.urlopen(req, timeout=3) as response:
+                    if response.status == 200:
+                        return True, "Reachable"
+            return False, f"HTTP status {response.status if 'response' in locals() else 'unknown'}"
+        except Exception as e:
+            return False, str(e)
+
+    def compile_markdown_to_html(self, md_text, title="Privacy Policy"):
+        lines = md_text.splitlines()
+        html_lines = []
+        in_list = False
+        
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                continue
+                
+            # Headers
+            if stripped.startswith("# "):
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                val = stripped[2:].strip()
+                html_lines.append(f"<h1>{val}</h1>")
+            elif stripped.startswith("## "):
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                val = stripped[3:].strip()
+                html_lines.append(f"<h2>{val}</h2>")
+            elif stripped.startswith("### "):
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                val = stripped[4:].strip()
+                html_lines.append(f"<h3>{val}</h3>")
+            # List items
+            elif stripped.startswith("- ") or stripped.startswith("* "):
+                if not in_list:
+                    html_lines.append("<ul>")
+                    in_list = True
+                val = stripped[2:].strip()
+                val = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', val)
+                html_lines.append(f"<li>{val}</li>")
+            # Paragraphs
+            else:
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                val = stripped
+                val = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', val)
+                html_lines.append(f"<p>{val}</p>")
+                
+        if in_list:
+            html_lines.append("</ul>")
+            
+        content_html = "\n".join(html_lines)
+        
+        template = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #f3f4f6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #0b0f19;
+        }}
+        h1, h2, h3 {{
+            color: #38bdf8;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+        }}
+        h1 {{
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 12px;
+            font-size: 2.2rem;
+            margin-bottom: 30px;
+        }}
+        h2 {{
+            font-size: 1.5rem;
+            margin-top: 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 6px;
+        }}
+        p, li {{
+            font-size: 1.05rem;
+            color: #d1d5db;
+        }}
+        ul {{
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }}
+        li {{
+            margin-bottom: 8px;
+        }}
+        strong {{
+            color: #38bdf8;
+        }}
+        .footer {{
+            margin-top: 60px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 20px;
+            font-size: 0.9rem;
+            color: #9ca3af;
+            text-align: center;
+        }}
+    </style>
+</head>
+<body>
+    {content_html}
+    <div class="footer">
+        &copy; {datetime.now().year} {title}. Hosted securely via GitHub Pages.
+    </div>
+</body>
+</html>
+"""
+        return template
 
     def detect_remote_code_and_permissions(self, repo_path, chrome_folder):
         extension_dir = os.path.normpath(os.path.join(repo_path, chrome_folder))
@@ -2571,6 +2791,14 @@ INDEX_HTML = """<!DOCTYPE html>
 
                 <!-- Right column: Graphic Assets & Permission Justifications -->
                 <div style="display: flex; flex-direction: column; gap: 24px;">
+                    <div class="panel" id="cws-preflight-panel" style="display: none;">
+                        <h2>Pre-flight Checklist</h2>
+                        <p class="panel-subtitle">Verifies that the extension meets all Chrome Web Store listing rules.</p>
+                        <div id="cws-preflight-box" style="display: flex; flex-direction: column; gap: 14px;">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
                     <div class="panel">
                         <h2>Graphic Assets</h2>
                         <p class="panel-subtitle">Verifies that the required store graphics exist locally.</p>
@@ -2728,6 +2956,146 @@ INDEX_HTML = """<!DOCTYPE html>
             if (group) {
                 group.style.display = show ? "block" : "none";
             }
+        }
+
+        function renderPreflightChecklist() {
+            const repo = state.selectedRepo;
+            const mod = repo.metadata.modules[state.selectedModuleIdx];
+            const panel = document.getElementById("cws-preflight-panel");
+            const box = document.getElementById("cws-preflight-box");
+            
+            if (mod.type !== "chrome-extension") {
+                panel.style.display = "none";
+                return;
+            }
+            
+            panel.style.display = "flex";
+            box.innerHTML = `<p style="font-size:12px; color:var(--text-secondary);">Analyzing pre-flight parameters...</p>`;
+            
+            const info = repo.manifest_info || {};
+            const cws = mod.cwsListing || {};
+            
+            // 1. Description Length check
+            const desc = info.description || "";
+            const descOk = desc.length > 0 && desc.length <= 132;
+            const descMsg = descOk 
+                ? `🟢 Description is CWS-compliant (${desc.length}/132 chars)`
+                : `🔴 Description length must be 1-132 chars (currently ${desc.length} chars)`;
+                
+            // 2. Icon 128x128 check
+            const icons = info.icons || {};
+            const icon128 = icons["128"] || {};
+            const iconOk = icon128.exists === true;
+            const iconMsg = iconOk
+                ? `🟢 Store Icon (128x128) exists locally`
+                : `🔴 Missing Store Icon (128x128) in manifest or on disk`;
+                
+            // 3. Screenshots check
+            const screens = info.screenshots || [];
+            const screenOk = screens.length >= 1;
+            const screenMsg = screenOk
+                ? `🟢 Found ${screens.length} screenshots (at least 1 required)`
+                : `🔴 CWS requires at least 1 screenshot (1280x800 or 640x400)`;
+                
+            // 4. Privacy policy link check
+            const privacyUrl = cws.privacyPolicyUrl || "";
+            const privacySet = privacyUrl.trim().length > 0;
+            
+            box.innerHTML = `
+                <div class="preflight-item" style="display:flex; flex-direction:column; gap:6px; padding:10px; background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size:12px; color: ${descOk ? 'var(--success)' : 'var(--error)'}; font-weight: 500;">
+                        ${descOk ? '✅' : '❌'} Description: ${descMsg}
+                    </div>
+                </div>
+                <div class="preflight-item" style="display:flex; flex-direction:column; gap:6px; padding:10px; background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size:12px; color: ${iconOk ? 'var(--success)' : 'var(--error)'}; font-weight: 500;">
+                        ${iconOk ? '✅' : '❌'} Icon Check: ${iconMsg}
+                    </div>
+                </div>
+                <div class="preflight-item" style="display:flex; flex-direction:column; gap:6px; padding:10px; background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size:12px; color: ${screenOk ? 'var(--success)' : 'var(--error)'}; font-weight: 500;">
+                        ${screenOk ? '✅' : '❌'} Screenshots: ${screenMsg}
+                    </div>
+                </div>
+                <div class="preflight-item" id="preflight-privacy-item" style="display:flex; flex-direction:column; gap:6px; padding:10px; background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size:12px; color:var(--text-primary); font-weight:500;">
+                        ⏳ Privacy Policy: Checking URL reachability...
+                    </div>
+                </div>
+            `;
+            
+            if (privacySet) {
+                fetch(`/api/check-privacy-url?url=${encodeURIComponent(privacyUrl)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const item = document.getElementById("preflight-privacy-item");
+                        if (!item) return;
+                        
+                        if (data.success && data.reachable) {
+                            item.innerHTML = `
+                                <div style="font-size:12px; color:var(--success); font-weight: 500;">
+                                    ✅ Privacy Policy URL is reachable (HTTP 200)
+                                </div>
+                                <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                                    URL: <a href="${privacyUrl}" target="_blank" style="color:var(--accent-cyan); text-decoration:underline;">${privacyUrl}</a>
+                                </div>
+                            `;
+                        } else {
+                            item.innerHTML = `
+                                <div style="font-size:12px; color:var(--error); font-weight: 500;">
+                                    ❌ Privacy Policy URL is unreachable (${data.error || 'Connection Failed'})
+                                </div>
+                                <div style="font-size:11px; color:var(--text-muted); margin-top:2px; margin-bottom: 6px;">
+                                    URL: <a href="${privacyUrl}" target="_blank" style="color:var(--error); text-decoration:underline;">${privacyUrl}</a>
+                                </div>
+                                <button class="btn btn-secondary" onclick="generatePrivacyHtml()" style="padding: 4px 8px; font-size: 11px; max-width: 200px;">
+                                    🔧 Fix / Generate privacy.html
+                                </button>
+                            `;
+                        }
+                    })
+                    .catch(err => {
+                        const item = document.getElementById("preflight-privacy-item");
+                        if (item) {
+                            item.innerHTML = `
+                                <div style="font-size:12px; color:var(--error); font-weight: 500;">
+                                    ❌ Reachability check failed: ${err}
+                                </div>
+                            `;
+                        }
+                    });
+            } else {
+                const item = document.getElementById("preflight-privacy-item");
+                if (item) {
+                    item.innerHTML = `
+                        <div style="font-size:12px; color:var(--error); font-weight: 500;">
+                            ❌ Privacy Policy URL is not set
+                        </div>
+                        <button class="btn btn-secondary" onclick="generatePrivacyHtml()" style="padding: 4px 8px; font-size: 11px; max-width: 200px; margin-top: 6px;">
+                            🔧 Fix / Generate privacy.html
+                        </button>
+                    `;
+                }
+            }
+        }
+
+        function generatePrivacyHtml() {
+            const repo = state.selectedRepo;
+            fetch('/api/generate-privacy-html', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: repo.path })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert("✅ Generated privacy.html in your repository root.\\n\\nTo make it public and reachable:\\n1. Commit and push 'privacy.html' to GitHub.\\n2. Ensure GitHub Pages is enabled on your repository settings.");
+                    renderPreflightChecklist();
+                } else {
+                    alert("❌ Failed to generate privacy.html: " + data.error);
+                }
+            })
+            .catch(err => alert("Error: " + err));
         }
 
         function switchTab(tabName) {
@@ -3425,6 +3793,9 @@ INDEX_HTML = """<!DOCTYPE html>
             
             // Checklist copyable fields
             populateOnboardingChecklist();
+            
+            // Pre-flight checklist
+            renderPreflightChecklist();
         }
 
         function runManifestDiagnostics() {
