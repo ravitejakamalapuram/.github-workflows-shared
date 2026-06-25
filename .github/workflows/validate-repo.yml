@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  RUNNER_TOOL_CACHE: /Users/rkamalapuram/hostedtoolcache
+
 jobs:
   validate-actions:
     name: Validate Composite Actions
@@ -106,7 +109,7 @@ jobs:
           echo "Checking for exposed secrets..."
           # Look for hardcoded secrets (not GitHub secrets passed as inputs)
           # Exclude legitimate password inputs that use ${{ secrets.* }} or ${{ inputs.* }}
-          if grep -r -i "password.*=.*['\"][^$]" --include="*.yml" --include="*.yaml" --exclude-dir=.git . | grep -v "\${{ '${{' }}" | grep -v "# "; then
+          if grep -r -i "password.*=\s*['\"][^$]" --include="*.yml" --include="*.yaml" --exclude-dir=.git . | grep -v "\${{ '${{' }}" | grep -v "# "; then
             echo "❌ Potential hardcoded credentials found!"
             exit 1
           fi
