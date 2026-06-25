@@ -39,6 +39,11 @@
 **Learning:** Shell scripts using inline Python (`python3 - << 'EOF'`) to decode base64 strings incur a high startup cost, especially in CI.
 **Action:** Replace inline Python base64 decoding with native `base64 --decode` (with a `-D` fallback for macOS compatibility) inside a standard bash loop.
 
+## 2026-06-24 - [Optimize YAML Validation in CI Scripts]
+
+**Learning:** Using inline Python (`python3 -c`) with the `yaml` module to validate YAML files inside bash scripts introduces unnecessary interpreter startup latency overhead.
+**Action:** Replace inline Python YAML validation with `yq empty`, which is a faster natively compiled processor, to eliminate the startup overhead and speed up CI workflows.
+
 ## 2024-06-07 - Replace Python JSON parsing with jq in workflows
 
 **Learning:** Using inline Python (`python3 -c`) for JSON file updates in GitHub Actions introduces unnecessary interpreter startup overhead.

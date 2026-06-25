@@ -2580,7 +2580,187 @@ INDEX_HTML = """<!DOCTYPE html>
         <!-- TAB 2: Package (formerly Builds & Assets) -->
         <div id="tab-content-package" class="tab-content" style="display: none;">
             <div class="workspace-layout">
-                <!-- Left column: Build Runner -->
+<<<<<<< HEAD
+                <!-- Sidebar: App Info & Module List -->
+                <div class="panel">
+                    <h2 id="workspace-sidebar-title">Select App</h2>
+                    <p class="panel-subtitle" id="workspace-sidebar-desc">Configure registry metadata details</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <label>Application Modules</label>
+                        <div class="list-items" id="workspace-module-list">
+                            <!-- Modules listed dynamically -->
+                        </div>
+                    </div>
+                    
+                    <div id="init-metadata-banner" style="display: none; flex-direction: column; gap: 12px;">
+                        <span class="badge badge-warning" style="width:100%;">No Metadata Found</span>
+                        <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">This app repository is missing the compliance <code>app-metadata.json</code> file. Click below to initialize it.</p>
+                        <button class="btn btn-primary" onclick="initializeMetadata()">Initialize app-metadata.json</button>
+                    </div>
+                </div>
+
+                <!-- Main Content: Registry Metadata Form Editor -->
+                <div class="panel" id="workspace-metadata-panel">
+                    <h2>Application Configuration Standard</h2>
+                    <p class="panel-subtitle">Edit metadata fields to serve as the single source of truth for CI/CD pipelines and manual onboarding</p>
+                    
+                    <div id="save-metadata-success" class="badge badge-success" style="display: none; padding: 10px; width: 100%; justify-content: center; font-size: 12px; margin-bottom: 10px;">
+                        ✓ Metadata saved successfully to app-metadata.json!
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="meta-app-name">Application Name</label>
+                            <input type="text" id="meta-app-name" placeholder="e.g. StellarTab">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta-app-type">Application Type</label>
+                            <select id="meta-app-type" onchange="adjustFormFieldsForType()">
+                                <option value="chrome-extension">Chrome Extension</option>
+                                <option value="flutter-app">Flutter App</option>
+                                <option value="android-app">Android App</option>
+                                <option value="multi-module">Multi-Module/Hybrid App</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="meta-app-desc">Application Description</label>
+                        <textarea id="meta-app-desc" placeholder="Write a short description of the application..."></textarea>
+                    </div>
+
+                    <!-- Dynamic Module Fields Section -->
+                    <div class="tab-section" id="meta-module-section">
+                        <h3 class="sub-header" id="meta-module-header">Module Configurations</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="meta-mod-name">Module Name</label>
+                                <input type="text" id="meta-mod-name" placeholder="e.g. Chrome Extension">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-mod-type">Module Type</label>
+                                <select id="meta-mod-type" onchange="toggleListingSchemaFields()">
+                                    <option value="chrome-extension">Chrome Extension</option>
+                                    <option value="android-app">Android App</option>
+                                    <option value="flutter-app">Flutter App</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="meta-mod-path">Relative Folder Path</label>
+                                <input type="text" id="meta-mod-path" placeholder="e.g. extension or .">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-mod-status">Listing Status</label>
+                                <select id="meta-mod-status" onchange="toggleStoreRequirements()">
+                                    <option value="draft">Draft (Manual Upload Ready)</option>
+                                    <option value="beta">Beta (Testing State)</option>
+                                    <option value="published">Published / Live in Store</option>
+                                    <option value="unpublished">Unpublished</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row" id="store-requirements-row" style="display: none;">
+                            <div class="form-group">
+                                <label for="meta-mod-storeid">Store / Package ID</label>
+                                <input type="text" id="meta-mod-storeid" placeholder="e.g. nkbihfbeogaeaoehlefnkodbefgpgknn">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-mod-storeurl">Public Store URL</label>
+                                <input type="text" id="meta-mod-storeurl" placeholder="https://chromewebstore.google.com/...">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="meta-mod-buildscript">Build Script Command</label>
+                                <input type="text" id="meta-mod-buildscript" placeholder="e.g. npm run build or flutter build apk">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-mod-artifact">Artifact Path (Target ZIP/APK/AAB)</label>
+                                <input type="text" id="meta-mod-artifact" placeholder="e.g. initial-package.zip or build/app/outputs/bundle/release/app-release.aab">
+                            </div>
+                        </div>
+
+                        <!-- Chrome Web Store Listing Fields -->
+                        <div id="cws-listing-fields" style="display: flex; flex-direction: column; gap: 16px;">
+                            <h4 class="sub-header" style="font-size: 11px; margin-top: 10px;">Store Listing Details (Chrome Web Store)</h4>
+                            <div class="form-group">
+                                <label for="meta-cws-short">Short Description (max 130 chars)</label>
+                                <input type="text" id="meta-cws-short" maxlength="130" placeholder="A brief user-facing description...">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-cws-long">Detailed Description</label>
+                                <textarea id="meta-cws-long" placeholder="Describe the extension features, how to use it..."></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="meta-cws-purpose">Single Purpose (max 70 chars)</label>
+                                    <input type="text" id="meta-cws-purpose" maxlength="70" placeholder="Define the primary action of this extension...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="meta-cws-category">Category</label>
+                                    <select id="meta-cws-category">
+                                        <option value="productivity">Productivity</option>
+                                        <option value="developer">Developer Tools</option>
+                                        <option value="search">Search Tools</option>
+                                        <option value="fun">Fun & Games</option>
+                                        <option value="accessibility">Accessibility</option>
+                                        <option value="social">Social & Communication</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-cws-privacy">Privacy Policy URL</label>
+                                <input type="text" id="meta-cws-privacy" placeholder="https://...">
+                            </div>
+                        </div>
+
+                        <!-- Google Play Store Listing Fields -->
+                        <div id="play-listing-fields" style="display: none; flex-direction: column; gap: 16px;">
+                            <h4 class="sub-header" style="font-size: 11px; margin-top: 10px;">Store Listing Details (Google Play Store)</h4>
+                            <div class="form-group">
+                                <label for="meta-play-title">Play Store App Title</label>
+                                <input type="text" id="meta-play-title" placeholder="User-facing app name...">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-play-short">Short Description (max 80 chars)</label>
+                                <input type="text" id="meta-play-short" maxlength="80" placeholder="Summary of what the app does...">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-play-full">Full Description</label>
+                                <textarea id="meta-play-full" placeholder="Detailed product marketing description..."></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="meta-play-category">Category</label>
+                                    <input type="text" id="meta-play-category" placeholder="e.g. utilities, finance, health">
+                                </div>
+                                <div class="form-group">
+                                    <label for="meta-play-privacy">Privacy Policy URL</label>
+                                    <input type="text" id="meta-play-privacy" placeholder="https://...">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="btn-row" style="margin-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 20px;">
+                        <div></div>
+                        <button class="btn btn-primary" onclick="saveMetadataChanges()" style="max-width: 200px;">Save Metadata standard</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Builds & Assets Console -->
+        <div id="tab-content-builds" class="tab-content">
+            <div class="workspace-layout" style="grid-template-columns: 1fr 400px;">
+                <!-- Build Runner & Terminal -->
                 <div class="panel">
                     <h2>Execute App Build</h2>
                     <p class="panel-subtitle">Trigger the app-defined build script locally.</p>
