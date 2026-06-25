@@ -127,31 +127,31 @@ jobs:
       - name: Commit and Push Updates
         if: success()
         run: |
-          python3 -c "
-          import json, os
-          path = 'app-metadata.json'
-          if not os.path.exists(path):
-              path = '.app-metadata.json'
-          if os.path.exists(path):
-              with open(path, 'r') as f:
-                  data = json.load(f)
-              updated = False
-              for mod in data.get('modules', []):
-                  if mod.get('type') == 'chrome-extension':
-                      ext_dir = '${{ inputs.extension-dir }}'
-                      if ext_dir and ext_dir != '.' and mod.get('path') != ext_dir:
-                          continue
-                      mod['status'] = 'published'
-                      store_id = '${{ secrets.chrome-extension-id }}'
-                      if store_id:
-                          mod['storeId'] = store_id
-                          mod['storeUrl'] = f'https://chromewebstore.google.com/detail/{store_id}'
-                      updated = True
-              if updated:
-                  with open(path, 'w') as f:
-                      json.dump(data, f, indent=2)
-                  print('✅ Updated app-metadata.json status to published')
-          "
+          if [ -f "app-metadata.json" ]; then
+            FILE="app-metadata.json"
+          elif [ -f ".app-metadata.json" ]; then
+            FILE=".app-metadata.json"
+          else
+            FILE=""
+          fi
+
+          if [ -n "$FILE" ]; then
+            jq --arg ext_dir "${{ inputs.extension-dir }}" --arg store_id "${{ secrets.chrome-extension-id }}" '
+              if .modules then
+                .modules = [
+                  .modules[] |
+                  if .type == "chrome-extension" and ($ext_dir == "" or $ext_dir == "." or .path == $ext_dir) then
+                    .status = "published" |
+                    if $store_id != "" then
+                      .storeId = $store_id |
+                      .storeUrl = "https://chromewebstore.google.com/detail/\($store_id)"
+                    else . end
+                  else . end
+                ]
+              else . end
+            ' "$FILE" > temp.json && mv temp.json "$FILE"
+            echo "✅ Updated app-metadata.json status to published"
+          fi
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app-metadata.json .app-metadata.json "${{ inputs.extension-dir }}/manifest.json" CHANGELOG.md 2>/dev/null || true
