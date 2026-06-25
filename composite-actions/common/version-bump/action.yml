@@ -41,8 +41,10 @@ runs:
     
     - name: Determine Version Bump Type
       id: detect-bump
+      env:
+        INPUT_BUMP_TYPE: ${{ inputs.bump-type }}
       run: |
-        BUMP_TYPE="${{ inputs.bump-type }}"
+        BUMP_TYPE="$INPUT_BUMP_TYPE"
         
         if [ "$BUMP_TYPE" == "auto" ]; then
           # Auto-detect from commit messages
@@ -69,16 +71,19 @@ runs:
     
     - name: Calculate New Version
       id: bump
+      env:
+        INPUT_INITIAL_VERSION: ${{ inputs.initial-version }}
+        INPUT_TAG_PREFIX: ${{ inputs.tag-prefix }}
       run: |
         # Get latest tag
         LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
         
         if [ -z "$LATEST_TAG" ]; then
           # No tags exist, use initial version
-          PREV_VERSION="${{ inputs.initial-version }}"
+          PREV_VERSION="$INPUT_INITIAL_VERSION"
         else
           # Remove prefix from tag
-          PREV_VERSION=${LATEST_TAG#${{ inputs.tag-prefix }}}
+          PREV_VERSION=${LATEST_TAG#$INPUT_TAG_PREFIX}
         fi
         
         echo "prev_version=$PREV_VERSION" >> $GITHUB_OUTPUT
@@ -113,7 +118,7 @@ runs:
         esac
         
         NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-        NEW_TAG="${{ inputs.tag-prefix }}$NEW_VERSION"
+        NEW_TAG="$INPUT_TAG_PREFIX$NEW_VERSION"
         
         echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
         echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
