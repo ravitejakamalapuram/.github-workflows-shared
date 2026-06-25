@@ -2580,7 +2580,6 @@ INDEX_HTML = """<!DOCTYPE html>
         <!-- TAB 2: Package (formerly Builds & Assets) -->
         <div id="tab-content-package" class="tab-content" style="display: none;">
             <div class="workspace-layout">
-<<<<<<< HEAD
                 <!-- Sidebar: App Info & Module List -->
                 <div class="panel">
                     <h2 id="workspace-sidebar-title">Select App</h2>
@@ -2692,7 +2691,7 @@ INDEX_HTML = """<!DOCTYPE html>
                             <h4 class="sub-header" style="font-size: 11px; margin-top: 10px;">Store Listing Details (Chrome Web Store)</h4>
                             <div class="form-group">
                                 <label for="meta-cws-short">Short Description (max 130 chars)</label>
-                                <input type="text" id="meta-cws-short" placeholder="A brief user-facing description...">
+                                <input type="text" id="meta-cws-short" maxlength="130" placeholder="A brief user-facing description...">
                             </div>
                             <div class="form-group">
                                 <label for="meta-cws-long">Detailed Description</label>
@@ -2701,7 +2700,7 @@ INDEX_HTML = """<!DOCTYPE html>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="meta-cws-purpose">Single Purpose (max 70 chars)</label>
-                                    <input type="text" id="meta-cws-purpose" placeholder="Define the primary action of this extension...">
+                                    <input type="text" id="meta-cws-purpose" maxlength="70" placeholder="Define the primary action of this extension...">
                                 </div>
                                 <div class="form-group">
                                     <label for="meta-cws-category">Category</label>
@@ -2730,7 +2729,7 @@ INDEX_HTML = """<!DOCTYPE html>
                             </div>
                             <div class="form-group">
                                 <label for="meta-play-short">Short Description (max 80 chars)</label>
-                                <input type="text" id="meta-play-short" placeholder="Summary of what the app does...">
+                                <input type="text" id="meta-play-short" maxlength="80" placeholder="Summary of what the app does...">
                             </div>
                             <div class="form-group">
                                 <label for="meta-play-full">Full Description</label>
