@@ -61,17 +61,22 @@ runs:
   steps:
     - name: Setup Signing
       if: inputs.keystore-base64 != ''
+      env:
+        KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
+        KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
+        KEY_PASSWORD: ${{ inputs.key-password }}
+        KEY_ALIAS: ${{ inputs.key-alias }}
       run: |
         echo "::group::Setup Android Signing"
 
         # Decode and save keystore
-        echo "${{ inputs.keystore-base64 }}" | base64 -d > android/upload-keystore.jks
+        echo "$KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
 
         # Create key.properties file
-        cat > android/key.properties << 'EOF'
-        storePassword=${{ inputs.keystore-password }}
-        keyPassword=${{ inputs.key-password }}
-        keyAlias=${{ inputs.key-alias }}
+        cat > android/key.properties << EOF
+        storePassword=$KEYSTORE_PASSWORD
+        keyPassword=$KEY_PASSWORD
+        keyAlias=$KEY_ALIAS
         storeFile=upload-keystore.jks
         EOF
 
@@ -81,40 +86,48 @@ runs:
 
     - name: Build Flutter Android
       id: build
+      env:
+        BUILD_TYPE: ${{ inputs.build-type }}
+        BUILD_MODE: ${{ inputs.build-mode }}
+        FLAVOR: ${{ inputs.flavor }}
+        SPLIT_PER_ABI: ${{ inputs.split-per-abi }}
+        OBFUSCATE: ${{ inputs.obfuscate }}
+        SPLIT_DEBUG_INFO: ${{ inputs.split-debug-info }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
       run: |
         set -e
 
-        BUILD_CMD="flutter build ${{ inputs.build-type }}"
+        BUILD_CMD="flutter build $BUILD_TYPE"
         
         # Add build mode
-        if [ "${{ inputs.build-mode }}" != "release" ]; then
-          BUILD_CMD="$BUILD_CMD --${{ inputs.build-mode }}"
+        if [ "$BUILD_MODE" != "release" ]; then
+          BUILD_CMD="$BUILD_CMD --$BUILD_MODE"
         fi
         
         # Add flavor if specified
-        [ -n "${{ inputs.flavor }}" ] && BUILD_CMD="$BUILD_CMD --flavor ${{ inputs.flavor }}"
+        [ -n "$FLAVOR" ] && BUILD_CMD="$BUILD_CMD --flavor $FLAVOR"
         
         # Add split-per-abi for APK builds
-        if [ "${{ inputs.build-type }}" == "apk" ] && [ "${{ inputs.split-per-abi }}" == "true" ]; then
+        if [ "$BUILD_TYPE" == "apk" ] && [ "$SPLIT_PER_ABI" == "true" ]; then
           BUILD_CMD="$BUILD_CMD --split-per-abi"
         fi
         
         # Add obfuscation settings
-        if [ "${{ inputs.obfuscate }}" == "true" ]; then
-          mkdir -p ${{ inputs.split-debug-info }}
-          BUILD_CMD="$BUILD_CMD --obfuscate --split-debug-info=${{ inputs.split-debug-info }}"
+        if [ "$OBFUSCATE" == "true" ]; then
+          mkdir -p "$SPLIT_DEBUG_INFO"
+          BUILD_CMD="$BUILD_CMD --obfuscate --split-debug-info=$SPLIT_DEBUG_INFO"
         fi
         
         # Add extra args
-        [ -n "${{ inputs.extra-args }}" ] && BUILD_CMD="$BUILD_CMD ${{ inputs.extra-args }}"
+        [ -n "$EXTRA_ARGS" ] && BUILD_CMD="$BUILD_CMD $EXTRA_ARGS"
         
-        echo "::group::Building Flutter Android (${{ inputs.build-type }})"
+        echo "::group::Building Flutter Android ($BUILD_TYPE)"
         echo "Command: $BUILD_CMD"
         $BUILD_CMD
         echo "::endgroup::"
         
         # Find the generated artifact
-        if [ "${{ inputs.build-type }}" == "appbundle" ]; then
+        if [ "$BUILD_TYPE" == "appbundle" ]; then
           ARTIFACT=$(find build/app/outputs/bundle -name "*.aab" | head -1)
         else
           ARTIFACT=$(find build/app/outputs/apk -name "*.apk" | head -1)
@@ -126,11 +139,11 @@ runs:
           echo "✅ Build successful: $ARTIFACT ($ARTIFACT_SIZE)"
           
           echo "## 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- **Type**: ${{ inputs.build-type }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Mode**: ${{ inputs.build-mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: $BUILD_TYPE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mode**: $BUILD_MODE" >> $GITHUB_STEP_SUMMARY
           echo "- **Path**: \`$ARTIFACT\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Size**: $ARTIFACT_SIZE" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ inputs.obfuscate }}" == "true" ]; then
+          if [ "$OBFUSCATE" == "true" ]; then
             echo "- **Obfuscated**: Yes" >> $GITHUB_STEP_SUMMARY
           fi
         else
