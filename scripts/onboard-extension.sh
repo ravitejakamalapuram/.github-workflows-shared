@@ -97,24 +97,26 @@ fi
 
 # Generate default base64 transparent PNG icons to prevent validation failure
 echo -e "  🎨 Generating default icon files..."
-python3 - << 'EOF'
-import base64
-import os
+# ⚡ Bolt Optimization: Replace slow Python script with fast native base64 decoding
+# Eliminates interpreter startup overhead for faster execution
+PNG_B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 
-# 1x1 transparent PNG base64 string
-png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-png_data = base64.b64decode(png_b64)
+EXT_DIR_NAME="${EXT_DIR:-extension}"
+if [ "$EXT_DIR_NAME" = "." ]; then
+    TARGET_ICONS_DIR="${TARGET_DIR:-.}/icons"
+else
+    TARGET_ICONS_DIR="${TARGET_DIR:-.}/$EXT_DIR_NAME/icons"
+fi
+mkdir -p "$TARGET_ICONS_DIR"
 
-ext_dir_name = os.getenv("EXT_DIR", "extension")
-target_dir = os.path.join(os.getenv("TARGET_DIR", "."), ext_dir_name if ext_dir_name != "." else "", "icons")
-os.makedirs(target_dir, exist_ok=True)
-
-for size in [16, 48, 128]:
-    file_path = os.path.join(target_dir, f"icon-{size}.png")
-    if not os.path.exists(file_path):
-        with open(file_path, "wb") as f:
-            f.write(png_data)
-EOF
+for size in 16 48 128; do
+    FILE_PATH="$TARGET_ICONS_DIR/icon-${size}.png"
+    if [ ! -f "$FILE_PATH" ]; then
+        if ! echo "$PNG_B64" | base64 --decode > "$FILE_PATH" 2>/dev/null; then
+            echo "$PNG_B64" | base64 -D > "$FILE_PATH" 2>/dev/null
+        fi
+    fi
+done
 # Generate service worker if missing
 SW_FILE="$TARGET_DIR/$EXT_DIR/service-worker.js"
 if [ ! -f "$SW_FILE" ]; then
