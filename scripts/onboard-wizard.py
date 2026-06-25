@@ -11,6 +11,7 @@ import re
 import threading
 import uuid
 import glob
+import shlex
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -1019,8 +1020,8 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     log_f.flush()
                     
                     proc = subprocess.Popen(
-                        build_script,
-                        shell=True,
+                        shlex.split(build_script),
+                        shell=False,
                         cwd=repo_path,
                         stdout=log_f,
                         stderr=subprocess.STDOUT,
