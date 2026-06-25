@@ -66,6 +66,7 @@ runs:
         status: ${{ inputs.release-status }}
         userFraction: ${{ inputs.release-status == 'inProgress' && inputs.user-fraction || '' }}
         whatsNewDirectory: ${{ inputs.whats-new-dir }}
+        changesNotSentForReview: true
     
     - name: Upload Summary
       if: always()

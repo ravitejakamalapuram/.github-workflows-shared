@@ -114,6 +114,7 @@ jobs:
           files: ${{ steps.package.outputs.package-path }}
       
       - name: Publish to Chrome Web Store
+        continue-on-error: true
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/publish-cws@main
         with:
           extension-id: ${{ secrets.chrome-extension-id }}

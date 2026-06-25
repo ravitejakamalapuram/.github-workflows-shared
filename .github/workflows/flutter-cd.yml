@@ -181,6 +181,7 @@ jobs:
           track: alpha
           status: completed
           inAppUpdatePriority: 2
+          changesNotSentForReview: true
 
       - name: Update Metadata to Published
         if: steps.check_skip.outputs.skip != 'true' && success()
@@ -313,6 +314,7 @@ jobs:
           track: alpha
           status: completed
           inAppUpdatePriority: 2
+          changesNotSentForReview: true
 
       - name: Commit and Push Updates
         if: success()
