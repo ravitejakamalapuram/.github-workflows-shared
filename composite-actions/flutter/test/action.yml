@@ -41,14 +41,19 @@ runs:
   steps:
     - name: Run Flutter Tests
       id: test
+      env:
+        COVERAGE: ${{ inputs.coverage }}
+        TEST_PATH: ${{ inputs.test-path }}
+        EXCLUDE_TAGS: ${{ inputs.exclude-tags }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
       run: |
         TEST_ARGS=""
-        [ "${{ inputs.coverage }}" == "true" ] && TEST_ARGS="$TEST_ARGS --coverage"
-        [ -n "${{ inputs.test-path }}" ] && TEST_ARGS="$TEST_ARGS ${{ inputs.test-path }}"
-        [ -n "${{ inputs.exclude-tags }}" ] && TEST_ARGS="$TEST_ARGS --exclude-tags=${{ inputs.exclude-tags }}"
+        [ "$COVERAGE" == "true" ] && TEST_ARGS="$TEST_ARGS --coverage"
+        [ -n "$TEST_PATH" ] && TEST_ARGS="$TEST_ARGS $TEST_PATH"
+        [ -n "$EXCLUDE_TAGS" ] && TEST_ARGS="$TEST_ARGS --exclude-tags=$EXCLUDE_TAGS"
 
         echo "::group::Flutter Test"
-        flutter test $TEST_ARGS ${{ inputs.extra-args }}
+        flutter test $TEST_ARGS $EXTRA_ARGS
         echo "::endgroup::"
 
         echo "✅ All tests passed"
@@ -57,6 +62,8 @@ runs:
     - name: Generate Coverage Report
       id: coverage-report
       if: inputs.coverage == 'true'
+      env:
+        COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
       run: |
         if [ -f "coverage/lcov.info" ]; then
           echo "::group::Coverage Summary"
@@ -74,12 +81,12 @@ runs:
           echo "::endgroup::"
           
           # Check coverage threshold
-          if [ -n "$COVERAGE" ] && [ "${{ inputs.coverage-threshold }}" != "0" ]; then
-            if (( $(echo "$COVERAGE < ${{ inputs.coverage-threshold }}" | bc -l) )); then
-              echo "::error::❌ Coverage $COVERAGE% is below threshold ${{ inputs.coverage-threshold }}%"
+          if [ -n "$COVERAGE" ] && [ "$COVERAGE_THRESHOLD" != "0" ]; then
+            if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
+              echo "::error::❌ Coverage $COVERAGE% is below threshold $COVERAGE_THRESHOLD%"
               exit 1
             else
-              echo "✅ Coverage $COVERAGE% meets threshold ${{ inputs.coverage-threshold }}%"
+              echo "✅ Coverage $COVERAGE% meets threshold $COVERAGE_THRESHOLD%"
             fi
           fi
         else
@@ -98,6 +105,8 @@ runs:
     
     - name: Generate Test Summary
       if: always()
+      env:
+        COVERAGE: ${{ inputs.coverage }}
       run: |
         echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
         
@@ -107,10 +116,10 @@ runs:
           echo "❌ Some tests failed" >> $GITHUB_STEP_SUMMARY
         fi
         
-        if [ "${{ inputs.coverage }}" == "true" ] && [ -f "coverage/lcov.info" ]; then
-          COVERAGE="${{ steps.coverage-report.outputs.coverage }}"
-          if [ "$COVERAGE" != "unknown" ] && [ "$COVERAGE" != "0" ]; then
-            echo "📊 **Code Coverage**: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
+        if [ "$COVERAGE" == "true" ] && [ -f "coverage/lcov.info" ]; then
+          COVERAGE_OUT="${{ steps.coverage-report.outputs.coverage }}"
+          if [ "$COVERAGE_OUT" != "unknown" ] && [ "$COVERAGE_OUT" != "0" ]; then
+            echo "📊 **Code Coverage**: $COVERAGE_OUT%" >> $GITHUB_STEP_SUMMARY
           fi
         fi
       shell: bash
