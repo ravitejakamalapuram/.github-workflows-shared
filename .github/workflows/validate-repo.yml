@@ -18,11 +18,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
       
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      
+
       - name: Install Dependencies
         run: pip install pyyaml
       
@@ -43,11 +39,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
       
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      
+
       - name: Install Dependencies
         run: pip install pyyaml
       
@@ -65,11 +57,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
       
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      
+
       - name: Check Python Syntax
         run: |
           echo "Validating Python scripts..."
