@@ -35,5 +35,11 @@
 **Action:** Always optimize large sets of slow shell commands by parallelizing across multiple CPU cores using `xargs -P <cores>` instead of sequential loops or complex runtime emulation. Example: `find ... -print0 | xargs -0 -P 8 sh -c 'for f; do node -c "$f"; done' sh`. Ensure `xargs` options are POSIX-compliant (e.g., omitting the GNU-only `-r` flag) for broader cross-platform runner compatibility.
 
 ## 2026-06-22 - Native base64 decoding instead of Python
+
 **Learning:** Shell scripts using inline Python (`python3 - << 'EOF'`) to decode base64 strings incur a high startup cost, especially in CI.
 **Action:** Replace inline Python base64 decoding with native `base64 --decode` (with a `-D` fallback for macOS compatibility) inside a standard bash loop.
+
+## 2024-06-07 - Replace Python JSON parsing with jq in workflows
+
+**Learning:** Using inline Python (`python3 -c`) for JSON file updates in GitHub Actions introduces unnecessary interpreter startup overhead.
+**Action:** Replace inline Python scripts with `jq` for JSON manipulation (e.g. updating app-metadata.json) to eliminate python interpreter startup time, keeping workflows fast and lightweight.

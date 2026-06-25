@@ -41,30 +41,37 @@ runs:
   steps:
     - name: Build Flutter iOS
       id: build
+      env:
+        BUILD_MODE: ${{ inputs.build-mode }}
+        FLAVOR: ${{ inputs.flavor }}
+        CODESIGN: ${{ inputs.codesign }}
+        OBFUSCATE: ${{ inputs.obfuscate }}
+        SPLIT_DEBUG_INFO: ${{ inputs.split-debug-info }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
       run: |
         set -e
         
         BUILD_CMD="flutter build ios"
         
         # Add build mode
-        if [ "${{ inputs.build-mode }}" != "release" ]; then
-          BUILD_CMD="$BUILD_CMD --${{ inputs.build-mode }}"
+        if [ "$BUILD_MODE" != "release" ]; then
+          BUILD_CMD="$BUILD_CMD --$BUILD_MODE"
         fi
         
         # Add flavor if specified
-        [ -n "${{ inputs.flavor }}" ] && BUILD_CMD="$BUILD_CMD --flavor ${{ inputs.flavor }}"
+        [ -n "$FLAVOR" ] && BUILD_CMD="$BUILD_CMD --flavor $FLAVOR"
         
         # Add code signing flag
-        [ "${{ inputs.codesign }}" == "false" ] && BUILD_CMD="$BUILD_CMD --no-codesign"
+        [ "$CODESIGN" == "false" ] && BUILD_CMD="$BUILD_CMD --no-codesign"
         
         # Add obfuscation settings
-        if [ "${{ inputs.obfuscate }}" == "true" ]; then
-          mkdir -p ${{ inputs.split-debug-info }}
-          BUILD_CMD="$BUILD_CMD --obfuscate --split-debug-info=${{ inputs.split-debug-info }}"
+        if [ "$OBFUSCATE" == "true" ]; then
+          mkdir -p "$SPLIT_DEBUG_INFO"
+          BUILD_CMD="$BUILD_CMD --obfuscate --split-debug-info=$SPLIT_DEBUG_INFO"
         fi
         
         # Add extra args
-        [ -n "${{ inputs.extra-args }}" ] && BUILD_CMD="$BUILD_CMD ${{ inputs.extra-args }}"
+        [ -n "$EXTRA_ARGS" ] && BUILD_CMD="$BUILD_CMD $EXTRA_ARGS"
         
         echo "::group::Building Flutter iOS"
         echo "Command: $BUILD_CMD"
@@ -80,7 +87,7 @@ runs:
           echo "✅ Build successful: $ARTIFACT ($ARTIFACT_SIZE)"
           
           echo "## 📦 iOS Build" >> $GITHUB_STEP_SUMMARY
-          echo "- **Mode**: ${{ inputs.build-mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mode**: $BUILD_MODE" >> $GITHUB_STEP_SUMMARY
           echo "- **Path**: \`$ARTIFACT\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Size**: $ARTIFACT_SIZE" >> $GITHUB_STEP_SUMMARY
         else
