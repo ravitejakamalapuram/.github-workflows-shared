@@ -93,7 +93,7 @@ jobs:
             jq --arg version "$VERSION" '.version = $version' "${{ inputs.extension-dir }}/manifest.json" > temp.json
             mv temp.json "${{ inputs.extension-dir }}/manifest.json"
           else
-            python3 -c "import json; d=json.load(open('${{ inputs.extension-dir }}/manifest.json')); d['version']='$VERSION'; json.dump(d, open('${{ inputs.extension-dir }}/manifest.json', 'w'), indent=2)"
+            jq --arg version "$VERSION" '.version = $version' "${{ inputs.extension-dir }}/manifest.json" > "${{ inputs.extension-dir }}/manifest.json.tmp" && mv "${{ inputs.extension-dir }}/manifest.json.tmp" "${{ inputs.extension-dir }}/manifest.json"
           fi
         shell: bash
       
