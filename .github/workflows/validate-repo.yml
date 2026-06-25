@@ -29,15 +29,7 @@ jobs:
       - name: Check YAML Syntax
         run: |
           echo "Validating all YAML files..."
-          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 python3 -c '
-          import sys, yaml
-          for f in sys.argv[1:]:
-              try:
-                  yaml.safe_load(open(f))
-              except Exception as e:
-                  print(f"Error checking {f}:\n{e}")
-                  sys.exit(1)
-          '
+          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 yq empty
           echo "✅ All YAML files are valid"
   
   validate-workflows:
@@ -59,15 +51,7 @@ jobs:
       - name: Validate Workflow Syntax
         run: |
           echo "Validating workflow files..."
-          python3 -c '
-          import sys, yaml
-          for f in sys.argv[1:]:
-              try:
-                  yaml.safe_load(open(f))
-              except Exception as e:
-                  print(f"Error checking {f}:\n{e}")
-                  sys.exit(1)
-          ' .github/workflows/*.yml
+          yq empty .github/workflows/*.yml
           echo "✅ All workflow files are valid"
   
   validate-scripts:
