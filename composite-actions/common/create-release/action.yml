@@ -48,11 +48,14 @@ runs:
   steps:
     - name: Prepare Release Name
       id: prepare
+      env:
+        RELEASE_NAME_INPUT: ${{ inputs.release-name }}
+        TAG_NAME: ${{ inputs.tag-name }}
       run: |
-        if [ -z "${{ inputs.release-name }}" ]; then
-          RELEASE_NAME="Release ${{ inputs.tag-name }}"
+        if [ -z "$RELEASE_NAME_INPUT" ]; then
+          RELEASE_NAME="Release $TAG_NAME"
         else
-          RELEASE_NAME="${{ inputs.release-name }}"
+          RELEASE_NAME="$RELEASE_NAME_INPUT"
         fi
         
         echo "name=$RELEASE_NAME" >> $GITHUB_OUTPUT
@@ -75,19 +78,26 @@ runs:
         GITHUB_TOKEN: ${{ github.token }}
     
     - name: Release Summary
+      env:
+        TAG_NAME: ${{ inputs.tag-name }}
+        DRAFT: ${{ inputs.draft }}
+        PRERELEASE: ${{ inputs.prerelease }}
+        FILES: ${{ inputs.files }}
+        RELEASE_NAME: ${{ steps.prepare.outputs.name }}
+        RELEASE_URL: ${{ steps.create.outputs.url }}
       run: |
         echo "## 🎉 GitHub Release Created" >> $GITHUB_STEP_SUMMARY
-        echo "- **Tag**: ${{ inputs.tag-name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Name**: ${{ steps.prepare.outputs.name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Draft**: ${{ inputs.draft }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Pre-release**: ${{ inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tag**: $TAG_NAME" >> $GITHUB_STEP_SUMMARY
+        echo "- **Name**: $RELEASE_NAME" >> $GITHUB_STEP_SUMMARY
+        echo "- **Draft**: $DRAFT" >> $GITHUB_STEP_SUMMARY
+        echo "- **Pre-release**: $PRERELEASE" >> $GITHUB_STEP_SUMMARY
         
-        if [ -n "${{ inputs.files }}" ]; then
+        if [ -n "$FILES" ]; then
           echo "- **Artifacts**: Uploaded" >> $GITHUB_STEP_SUMMARY
         fi
         
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "🔗 [View Release](${{ steps.create.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 [View Release]($RELEASE_URL)" >> $GITHUB_STEP_SUMMARY
       shell: bash
 
 branding:

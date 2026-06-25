@@ -32,9 +32,14 @@ def validate_chrome_extension(repo_path, ext_dir):
         
     version = manifest.get("version", "")
     name = manifest.get("name", "Unknown Extension")
+    description = manifest.get("description", "")
     
     if not version:
         log_error("manifest.json is missing 'version' property.")
+        success = False
+        
+    if len(description) > 132:
+        log_error(f"The description field in manifest.json is too long: {len(description)}. It exceeds the maximum size limit of 132 characters required by Chrome Web Store.")
         success = False
         
     log_success(f"Scanning Chrome Extension: {name} v{version}")
