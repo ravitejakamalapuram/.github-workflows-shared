@@ -2855,12 +2855,12 @@ INDEX_HTML = """<!DOCTYPE html>
 
                 <div class="form-row" style="margin-bottom: 16px;">
                     <div class="form-group">
-                        <label for="secrets-client-id">OAuth Client ID</label>
-                        <input type="text" id="secrets-client-id" placeholder="Enter Client ID">
+                        <label for="secrets-client-id">OAuth Client ID <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                        <input type="text" id="secrets-client-id" placeholder="Enter Client ID" required aria-required="true">
                     </div>
                     <div class="form-group">
-                        <label for="secrets-client-secret">OAuth Client Secret</label>
-                        <input type="password" id="secrets-client-secret" placeholder="Enter Client Secret">
+                        <label for="secrets-client-secret">OAuth Client Secret <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                        <input type="password" id="secrets-client-secret" placeholder="Enter Client Secret" required aria-required="true">
                     </div>
                 </div>
 
