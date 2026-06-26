@@ -42,20 +42,25 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkou  v4        uses: a n        usate required files exist
+        uses: actions/checkout@v4
+      
+      - name: Validate required files exist
         run: |
           set -e
-          if [ ! -          if [ ! -   ry          if [ ! -             if [ or::Directory ${{ inputs.directory }} not found"
+          if [ ! -d "${{ inputs.directory }}" ]; then
+            echo "::error::Directory ${{ inputs.directory }} not found"
             exit 1
-                       echo "✅ Directory validated: ${{ inputs.directory }}"
+          fi
+          echo "✅ Directory validated: ${{ inputs.directory }}"
         shell: bash
       
-      -       -       -       lare Pages
+      - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.cloudflare-api-token }}
           accountId: ${{ secrets.cloudflare-account-id }}
-          projectName: ${{ inputs.project-name           projectName: ${{ inputs.project-ry }}
+          projectName: ${{ inputs.project-name }}
+          directory: ${{ inputs.directory }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ github.ref_name }}
           wranglerVersion: '3'
@@ -63,7 +68,8 @@ jobs:
       - name: Deployment Summary
         run: |
           echo "## 🌐 Cloudflare Pages Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- **Project**: ${{ inputs.proj   -n         >           echo "- **Project**: $cho "- **Directory**: ${{ inputs.directory }}" >> $GITHUB_STEP_SUMMARY
-          echo "          ech ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project**: ${{ inputs.project-name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Directory**: ${{ inputs.directory }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
         shell: bash
