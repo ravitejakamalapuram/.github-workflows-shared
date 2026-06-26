@@ -1,0 +1,69 @@
+name: Reusable Cloudflare Pages Deploy
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: 'Cloudflare Pages project name'
+        required: true
+        type: string
+      directory:
+        description: 'Directory to deploy'
+        required: false
+        type: string
+        default: '.'
+      production-branch:
+        description: 'Production branch name'
+        required: false
+        type: string
+        default: 'main'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+    secrets:
+      cloudflare-api-token:
+        description: 'Cloudflare API Token'
+        required: true
+      cloudflare-account-id:
+        description: 'Cloudflare Account ID'
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Pages
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 10
+    
+    permissions:
+      contents: read
+      deployments: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkou  v4        uses: a n        usate required files exist
+        run: |
+          set -e
+          if [ ! -          if [ ! -   ry          if [ ! -             if [ or::Directory ${{ inputs.directory }} not found"
+            exit 1
+                       echo "✅ Directory validated: ${{ inputs.directory }}"
+        shell: bash
+      
+      -       -       -       lare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.cloudflare-api-token }}
+          accountId: ${{ secrets.cloudflare-account-id }}
+          projectName: ${{ inputs.project-name           projectName: ${{ inputs.project-ry }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref_name }}
+          wranglerVersion: '3'
+      
+      - name: Deployment Summary
+        run: |
+          echo "## 🌐 Cloudflare Pages Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project**: ${{ inputs.proj   -n         >           echo "- **Project**: $cho "- **Directory**: ${{ inputs.directory }}" >> $GITHUB_STEP_SUMMARY
+          echo "          ech ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
+        shell: bash

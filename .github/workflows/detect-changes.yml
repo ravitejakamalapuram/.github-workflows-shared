@@ -1,0 +1,123 @@
+name: Reusable Change Detection
+
+on:
+  workflow_call:
+    inputs:
+      paths-to-check:
+        description: 'JSON array of path patterns to check (e.g., ["website/**", "worker/**"])'
+        required: true
+        type: string
+      output-names:
+        description: 'JSON array of output names corresponding to paths (e.g., ["website", "worker"])'
+        required: true
+        type: string
+      exclude-patterns:
+        description: 'JSON array of patterns to exclude (e.g., ["**/*.md"])'
+        required: false
+        type: string
+        default: '[]'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+    outputs:
+      changes:
+        description: 'JSON object with change detection results'
+        value: ${{ jobs.detect.outputs.changes }}
+
+jobs:
+  detect:
+    name: Detect Changed Paths
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 5
+    
+    outputs:
+      changes: ${{ steps.changes.outputs.changes }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Detect changes
+        id: changes
+        run: |
+          set -e
+          
+          # Parse inputs
+          PATHS='${{ inputs.paths-to-check }}'
+          NAMES='${{ inputs.output-names }}'
+          EXCLUDES='${{ inputs.exclude-patterns }}'
+          
+          # Get changed files
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - checking all paths"
+            CHANGED_FILES=$(git ls-files)
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          echo ""
+          
+          # Initialize results
+          RESULTS="{}"
+          
+          # Parse paths and names arrays
+          PATHS_ARRAY=$(echo "$PATHS" | jq -r '.[]')
+          NAMES_ARRAY=$(echo "$NAMES" | jq -r '.[]')
+          
+          # Iterate through paths
+          INDEX=0
+          while IFS= read -r PATH_PATTERN && IFS= read -r OUTPUT_NAME <&3; do
+            # Remove trailing /** for directory matching
+            DIR_PATTERN=$(echo "$PATH_PATTERN" | sed 's/\/\*\*$//')
+            
+            # Check if any changed files match this pattern
+            MATCHES=false
+            while IFS= read -r FILE; do
+              if [[ "$FILE" == $DIR_PATTERN/* ]] || [[ "$FILE" == $PATH_PATTERN ]]; then
+                # Check excludes
+                EXCLUDED=false
+                if [ "$EXCLUDES" != "[]" ]; then
+                  while IFS= read -r EXCLUDE_PATTERN; do
+                    if [[ "$FILE" == $EXCLUDE_PATTERN ]]; then
+                      EXCLUDED=true
+                      break
+                    fi
+                  done < <(echo "$EXCLUDES" | jq -r '.[]')
+                fi
+                
+                if [ "$EXCLUDED" = false ]; then
+                  MATCHES=true
+                  break
+                fi
+              fi
+            done <<< "$CHANGED_FILES"
+            
+            # Set output
+            if [ "$MATCHES" = true ]; then
+              echo "${OUTPUT_NAME}=true" >> $GITHUB_OUTPUT
+              echo "✅ ${OUTPUT_NAME}: changes detected"
+              RESULTS=$(echo "$RESULTS" | jq --arg key "$OUTPUT_NAME" --arg val "true" '.[$key] = $val')
+            else
+              echo "${OUTPUT_NAME}=false" >> $GITHUB_OUTPUT
+              echo "⏭️  ${OUTPUT_NAME}: no changes"
+              RESULTS=$(echo "$RESULTS" | jq --arg key "$OUTPUT_NAME" --arg val "false" '.[$key] = $val')
+            fi
+            
+            INDEX=$((INDEX + 1))
+          done < <(echo "$PATHS_ARRAY") 3< <(echo "$NAMES_ARRAY")
+          
+          # Output JSON results
+          echo "changes=$RESULTS" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "## 🔍 Change Detection Results" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+          echo "$RESULTS" | jq '.' >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        shell: bash
