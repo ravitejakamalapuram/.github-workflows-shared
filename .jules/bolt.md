@@ -48,3 +48,7 @@
 
 **Learning:** Using inline Python (`python3 -c`) for JSON file updates in GitHub Actions introduces unnecessary interpreter startup overhead.
 **Action:** Replace inline Python scripts with `jq` for JSON manipulation (e.g. updating app-metadata.json) to eliminate python interpreter startup time, keeping workflows fast and lightweight.
+
+## 2024-06-08 - Replace Python JSON parsing with jq in workflows
+**Learning:** Using inline Python (`python3 -c`) for JSON file updates in GitHub Actions introduces unnecessary interpreter startup overhead.
+**Action:** Replace inline Python scripts with `jq` for JSON manipulation (e.g. updating app-metadata.json) to eliminate python interpreter startup time, keeping workflows fast and lightweight.

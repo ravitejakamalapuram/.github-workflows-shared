@@ -186,28 +186,24 @@ jobs:
       - name: Update Metadata to Published
         if: steps.check_skip.outputs.skip != 'true' && success()
         run: |
-          python3 -c "
-          import json, os
-          path = 'app-metadata.json'
-          if not os.path.exists(path):
-              path = '.app-metadata.json'
-          if os.path.exists(path):
-              with open(path, 'r') as f:
-                  data = json.load(f)
-              updated = False
-              for mod in data.get('modules', []):
-                  if mod.get('type') in ['flutter-app', 'android-app']:
-                      mod['status'] = 'published'
-                      store_id = '${{ inputs.package-name }}'
-                      if store_id:
-                          mod['storeId'] = store_id
-                          mod['storeUrl'] = f'https://play.google.com/store/apps/details?id={store_id}'
-                      updated = True
-              if updated:
-                  with open(path, 'w') as f:
-                      json.dump(data, f, indent=2)
-                  print('✅ Updated app-metadata.json status to published')
-          "
+          PATH_META="app-metadata.json"
+          if [ ! -f "$PATH_META" ]; then
+            PATH_META=".app-metadata.json"
+          fi
+          if [ -f "$PATH_META" ]; then
+            jq --arg store_id "${{ inputs.package-name }}" '
+              .modules |= map(
+                if .type == "flutter-app" or .type == "android-app" then
+                  .status = "published" |
+                  (if $store_id != "" then
+                    .storeId = $store_id |
+                    .storeUrl = "https://play.google.com/store/apps/details?id=\($store_id)"
+                  else . end)
+                else . end
+              )
+            ' "$PATH_META" > "$PATH_META.tmp" && mv "$PATH_META.tmp" "$PATH_META"
+            echo "✅ Updated app-metadata.json status to published"
+          fi
         shell: bash
 
       - name: Commit Version Bump
@@ -319,28 +315,24 @@ jobs:
       - name: Commit and Push Updates
         if: success()
         run: |
-          python3 -c "
-          import json, os
-          path = 'app-metadata.json'
-          if not os.path.exists(path):
-              path = '.app-metadata.json'
-          if os.path.exists(path):
-              with open(path, 'r') as f:
-                  data = json.load(f)
-              updated = False
-              for mod in data.get('modules', []):
-                  if mod.get('type') in ['flutter-app', 'android-app']:
-                      mod['status'] = 'published'
-                      store_id = '${{ inputs.package-name }}'
-                      if store_id:
-                          mod['storeId'] = store_id
-                          mod['storeUrl'] = f'https://play.google.com/store/apps/details?id={store_id}'
-                      updated = True
-              if updated:
-                  with open(path, 'w') as f:
-                      json.dump(data, f, indent=2)
-                  print('✅ Updated app-metadata.json status to published')
-          "
+          PATH_META="app-metadata.json"
+          if [ ! -f "$PATH_META" ]; then
+            PATH_META=".app-metadata.json"
+          fi
+          if [ -f "$PATH_META" ]; then
+            jq --arg store_id "${{ inputs.package-name }}" '
+              .modules |= map(
+                if .type == "flutter-app" or .type == "android-app" then
+                  .status = "published" |
+                  (if $store_id != "" then
+                    .storeId = $store_id |
+                    .storeUrl = "https://play.google.com/store/apps/details?id=\($store_id)"
+                  else . end)
+                else . end
+              )
+            ' "$PATH_META" > "$PATH_META.tmp" && mv "$PATH_META.tmp" "$PATH_META"
+            echo "✅ Updated app-metadata.json status to published"
+          fi
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app-metadata.json .app-metadata.json 2>/dev/null || true
@@ -383,28 +375,24 @@ jobs:
       - name: Commit and Push Updates
         if: success()
         run: |
-          python3 -c "
-          import json, os
-          path = 'app-metadata.json'
-          if not os.path.exists(path):
-              path = '.app-metadata.json'
-          if os.path.exists(path):
-              with open(path, 'r') as f:
-                  data = json.load(f)
-              updated = False
-              for mod in data.get('modules', []):
-                  if mod.get('type') in ['flutter-app', 'android-app']:
-                      mod['status'] = 'published'
-                      store_id = '${{ inputs.package-name }}'
-                      if store_id:
-                          mod['storeId'] = store_id
-                          mod['storeUrl'] = f'https://play.google.com/store/apps/details?id={store_id}'
-                      updated = True
-              if updated:
-                  with open(path, 'w') as f:
-                      json.dump(data, f, indent=2)
-                  print('✅ Updated app-metadata.json status to published')
-          "
+          PATH_META="app-metadata.json"
+          if [ ! -f "$PATH_META" ]; then
+            PATH_META=".app-metadata.json"
+          fi
+          if [ -f "$PATH_META" ]; then
+            jq --arg store_id "${{ inputs.package-name }}" '
+              .modules |= map(
+                if .type == "flutter-app" or .type == "android-app" then
+                  .status = "published" |
+                  (if $store_id != "" then
+                    .storeId = $store_id |
+                    .storeUrl = "https://play.google.com/store/apps/details?id=\($store_id)"
+                  else . end)
+                else . end
+              )
+            ' "$PATH_META" > "$PATH_META.tmp" && mv "$PATH_META.tmp" "$PATH_META"
+            echo "✅ Updated app-metadata.json status to published"
+          fi
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app-metadata.json .app-metadata.json 2>/dev/null || true
