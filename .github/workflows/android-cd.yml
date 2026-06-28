@@ -114,9 +114,6 @@ jobs:
           echo "Version: $VERSION -> Version Code: $CODE"
           echo "code=$CODE" >> $GITHUB_OUTPUT
         shell: bash
-          CODE=$(git rev-list --count HEAD)
-          echo "code=$CODE" >> $GITHUB_OUTPUT
-        shell: bash
 
       - name: Build Release APK
         id: build-apk
