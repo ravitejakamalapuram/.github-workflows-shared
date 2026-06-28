@@ -45,13 +45,15 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Validate required files exist
+        env:
+          INPUT_DIRECTORY: ${{ inputs.directory }}
         run: |
           set -e
-          if [ ! -d "${{ inputs.directory }}" ]; then
-            echo "::error::Directory ${{ inputs.directory }} not found"
+          if [ ! -d "$INPUT_DIRECTORY" ]; then
+            echo "::error::Directory $INPUT_DIRECTORY not found"
             exit 1
           fi
-          echo "✅ Directory validated: ${{ inputs.directory }}"
+          echo "✅ Directory validated: $INPUT_DIRECTORY"
         shell: bash
       
       - name: Deploy to Cloudflare Pages
@@ -66,10 +68,13 @@ jobs:
           wranglerVersion: '3'
       
       - name: Deployment Summary
+        env:
+          INPUT_PROJECT_NAME: ${{ inputs.project-name }}
+          INPUT_DIRECTORY: ${{ inputs.directory }}
         run: |
           echo "## 🌐 Cloudflare Pages Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- **Project**: ${{ inputs.project-name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Directory**: ${{ inputs.directory }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project**: $INPUT_PROJECT_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Directory**: $INPUT_DIRECTORY" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
         shell: bash
