@@ -55,10 +55,12 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Validate wrangler.toml exists
+        env:
+          WORKING_DIR: ${{ inputs.working-directory }}
         run: |
           set -e
-          if [ ! -f "${{ inputs.working-directory }}/wrangler.toml" ]; then
-            echo "::error::wrangler.toml not found in ${{ inputs.working-directory }}"
+          if [ ! -f "$WORKING_DIR/wrangler.toml" ]; then
+            echo "::error::wrangler.toml not found in $WORKING_DIR"
             exit 1
           fi
           echo "✅ wrangler.toml validated"
@@ -75,13 +77,16 @@ jobs:
       
       - name: Verify deployment health check
         if: inputs.health-check-url != ''
+        env:
+          HEALTH_CHECK_URL: ${{ inputs.health-check-url }}
+          HEALTH_CHECK_TIMEOUT: ${{ inputs.health-check-timeout }}
         run: |
           set -e
           echo "⏳ Waiting 5 seconds for deployment propagation..."
           sleep 5
           
-          echo "Testing health endpoint: ${{ inputs.health-check-url }}"
-          if ! curl -f --connect-timeout 5 --max-time ${{ inputs.health-check-timeout }} "${{ inputs.health-check-url }}"; then
+          echo "Testing health endpoint: $HEALTH_CHECK_URL"
+          if ! curl -f --connect-timeout 5 --max-time "$HEALTH_CHECK_TIMEOUT" "$HEALTH_CHECK_URL"; then
             echo "❌ Health check failed"
             exit 1
           fi
@@ -89,13 +94,18 @@ jobs:
         shell: bash
       
       - name: Deployment Summary
+        env:
+          WORKING_DIR: ${{ inputs.working-directory }}
+          ENV: ${{ inputs.environment }}
+          WRANGLER_VERSION: ${{ inputs.wrangler-version }}
+          HEALTH_CHECK_URL: ${{ inputs.health-check-url }}
         run: |
           echo "## ⚙️ Cloudflare Worker Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- **Working Directory**: ${{ inputs.working-directory }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Wrangler Version**: ${{ inputs.wrangler-version }}" >> $GITHUB_STEP_SUMMARY
-          if [ -n "${{ inputs.health-check-url }}" ]; then
-            echo "- **Health Check**: ✅ Passed (${{ inputs.health-check-url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Working Directory**: $WORKING_DIR" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: $ENV" >> $GITHUB_STEP_SUMMARY
+          echo "- **Wrangler Version**: $WRANGLER_VERSION" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$HEALTH_CHECK_URL" ]; then
+            echo "- **Health Check**: ✅ Passed ($HEALTH_CHECK_URL)" >> $GITHUB_STEP_SUMMARY
           fi
           echo "- **Status**: ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
         shell: bash
