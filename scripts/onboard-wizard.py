@@ -2479,7 +2479,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div style="display: flex; align-items: center; gap: 16px;">
                     <!-- Dropdown to select module (shown if multi-module) -->
                     <div id="active-app-module-selector-container" style="display: none; align-items: center; gap: 8px;">
-                        <label style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">Select Module:</label>
+                        <label for="active-app-module-select" style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">Select Module:</label>
                         <select id="active-app-module-select" onchange="onModuleSelectChange(this.value)" style="width: auto; padding: 6px 12px; background: rgba(10, 14, 23, 0.8); border: 1px solid var(--accent-cyan); border-radius: 6px; color: var(--text-primary); font-size: 13px; font-weight: 600;">
                         </select>
                     </div>
@@ -2526,8 +2526,8 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div class="controls-row">
                     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; flex: 1;">
                         <div class="search-container">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" id="search-input" class="search-input" placeholder="Search applications..." oninput="handleSearch(this.value)">
+                            <span class="search-icon" aria-hidden="true">🔍</span>
+                            <input type="text" id="search-input" class="search-input" placeholder="Search applications..." aria-label="Search applications" oninput="handleSearch(this.value)">
                         </div>
                         <div class="dashboard-filters" style="margin: 0; padding: 0;">
                             <button class="filter-btn active" onclick="filterDashboard('all')" id="filter-btn-all" style="padding: 8px 16px; border-radius: 8px;">
@@ -2542,7 +2542,7 @@ INDEX_HTML = """<!DOCTYPE html>
                         </div>
                     </div>
                     <div class="sort-container">
-                        <span style="font-weight: 500;">Sort by:</span>
+                        <label for="sort-select" style="font-weight: 500;">Sort by:</label>
                         <select id="sort-select" class="sort-select" onchange="handleSort(this.value)">
                             <option value="name">Name (A-Z)</option>
                             <option value="build_date">Latest Build Date</option>
