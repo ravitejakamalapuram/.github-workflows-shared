@@ -2527,7 +2527,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; flex: 1;">
                         <div class="search-container">
                             <span class="search-icon">🔍</span>
-                            <input type="text" id="search-input" class="search-input" placeholder="Search applications..." oninput="handleSearch(this.value)">
+                            <input type="text" id="search-input" class="search-input" placeholder="Search applications..." aria-label="Search applications" oninput="handleSearch(this.value)">
                         </div>
                         <div class="dashboard-filters" style="margin: 0; padding: 0;">
                             <button class="filter-btn active" onclick="filterDashboard('all')" id="filter-btn-all" style="padding: 8px 16px; border-radius: 8px;">
