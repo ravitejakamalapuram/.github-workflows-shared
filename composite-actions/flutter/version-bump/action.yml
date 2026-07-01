@@ -48,14 +48,15 @@ runs:
   steps:
     - name: Parse and update version
       id: bump
+      env:
+        PUBSPEC_PATH: ${{ inputs.pubspec-path }}
+        BUMP_TYPE: ${{ inputs.bump-type }}
+        UPDATE_DART_FILE: ${{ inputs.update-dart-file }}
+        DART_VERSION_VAR: ${{ inputs.dart-version-var }}
+        DART_BUILD_VAR: ${{ inputs.dart-build-var }}
+        FASTLANE_CHANGELOG: ${{ inputs.fastlane-changelog }}
+        CHANGELOG_CONTENT: ${{ inputs.changelog-content }}
       run: |
-        PUBSPEC_PATH="${{ inputs.pubspec-path }}"
-        BUMP_TYPE="${{ inputs.bump-type }}"
-        UPDATE_DART_FILE="${{ inputs.update-dart-file }}"
-        DART_VERSION_VAR="${{ inputs.dart-version-var }}"
-        DART_BUILD_VAR="${{ inputs.dart-build-var }}"
-        FASTLANE_CHANGELOG="${{ inputs.fastlane-changelog }}"
-        CHANGELOG_CONTENT="${{ inputs.changelog-content }}"
 
         if [ ! -f "$PUBSPEC_PATH" ]; then
           echo "::error::pubspec.yaml not found at $PUBSPEC_PATH"
