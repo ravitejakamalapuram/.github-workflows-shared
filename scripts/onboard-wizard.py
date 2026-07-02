@@ -2542,7 +2542,7 @@ INDEX_HTML = """<!DOCTYPE html>
                         </div>
                     </div>
                     <div class="sort-container">
-                        <span style="font-weight: 500;">Sort by:</span>
+                        <label for="sort-select" style="font-weight: 500;">Sort by:</label>
                         <select id="sort-select" class="sort-select" onchange="handleSort(this.value)">
                             <option value="name">Name (A-Z)</option>
                             <option value="build_date">Latest Build Date</option>
