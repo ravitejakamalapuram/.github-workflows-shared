@@ -169,6 +169,8 @@ jobs:
 
       - name: Commit and Push Updates
         if: success() && inputs.deploy-to-play
+        env:
+          PACKAGE_NAME: ${{ inputs.package-name }}
         run: |
           python3 -c "
           import json, os
@@ -182,7 +184,7 @@ jobs:
               for mod in data.get('modules', []):
                   if mod.get('type') == 'android-app':
                       mod['status'] = 'published'
-                      store_id = '${{ inputs.package-name }}'
+                      store_id = os.getenv('PACKAGE_NAME')
                       if store_id:
                           mod['storeId'] = store_id
                           mod['storeUrl'] = f'https://play.google.com/store/apps/details?id={store_id}'
