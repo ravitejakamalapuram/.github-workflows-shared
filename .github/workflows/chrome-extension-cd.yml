@@ -87,13 +87,15 @@ jobs:
           push-tag: 'true'
       
       - name: Update manifest.json Version
+        env:
+          EXTENSION_DIR: ${{ inputs.extension-dir }}
         run: |
           VERSION="${{ steps.version.outputs.new-version }}"
           if command -v jq >/dev/null 2>&1; then
-            jq --arg version "$VERSION" '.version = $version' "${{ inputs.extension-dir }}/manifest.json" > temp.json
-            mv temp.json "${{ inputs.extension-dir }}/manifest.json"
+            jq --arg version "$VERSION" '.version = $version' "$EXTENSION_DIR/manifest.json" > temp.json
+            mv temp.json "$EXTENSION_DIR/manifest.json"
           else
-            python3 -c "import json; d=json.load(open('${{ inputs.extension-dir }}/manifest.json')); d['version']='$VERSION'; json.dump(d, open('${{ inputs.extension-dir }}/manifest.json', 'w'), indent=2)"
+            python3 -c "import json, os; ext_dir=os.getenv('EXTENSION_DIR', '.'); d=json.load(open(f'{ext_dir}/manifest.json')); d['version']='$VERSION'; json.dump(d, open(f'{ext_dir}/manifest.json', 'w'), indent=2)"
           fi
         shell: bash
       
@@ -127,6 +129,8 @@ jobs:
 
       - name: Commit and Push Updates
         if: success()
+        env:
+          EXTENSION_DIR: ${{ inputs.extension-dir }}
         run: |
           if [ -f "app-metadata.json" ]; then
             FILE="app-metadata.json"
@@ -137,7 +141,7 @@ jobs:
           fi
 
           if [ -n "$FILE" ]; then
-            jq --arg ext_dir "${{ inputs.extension-dir }}" --arg store_id "${{ secrets.chrome-extension-id }}" '
+            jq --arg ext_dir "$EXTENSION_DIR" --arg store_id "${{ secrets.chrome-extension-id }}" '
               if .modules then
                 .modules = [
                   .modules[] |
@@ -155,7 +159,7 @@ jobs:
           fi
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app-metadata.json .app-metadata.json "${{ inputs.extension-dir }}/manifest.json" CHANGELOG.md 2>/dev/null || true
+          git add app-metadata.json .app-metadata.json "$EXTENSION_DIR/manifest.json" CHANGELOG.md 2>/dev/null || true
           git commit -m "chore(release): update manifest version and metadata to published [skip ci]" || true
           git push origin HEAD:main || true
         shell: bash
