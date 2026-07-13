@@ -6,10 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  RUNNER_TOOL_CACHE: /Users/rkamalapuram/hostedtoolcache
+
 jobs:
   validate-actions:
     name: Validate Composite Actions
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -17,7 +20,7 @@ jobs:
       
 
       - name: Install Dependencies
-        run: pip install pyyaml
+        run: pip install pyyaml yq
       
       - name: Validate Action Structure
         run: python3 scripts/validate-actions.py
@@ -30,7 +33,7 @@ jobs:
   
   validate-workflows:
     name: Validate Workflows
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -38,7 +41,7 @@ jobs:
       
 
       - name: Install Dependencies
-        run: pip install pyyaml
+        run: pip install pyyaml yq
       
       - name: Validate Workflow Syntax
         run: |
@@ -48,7 +51,7 @@ jobs:
   
   validate-scripts:
     name: Validate Scripts
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -69,7 +72,7 @@ jobs:
   
   validate-configs:
     name: Validate Configurations
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -83,7 +86,7 @@ jobs:
   
   validate-security:
     name: Security Checks
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -108,7 +111,7 @@ jobs:
   
   markdown-lint:
     name: Lint Documentation
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -122,7 +125,7 @@ jobs:
   
   all-checks-passed:
     name: All Checks Passed
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [validate-actions, validate-workflows, validate-scripts, validate-configs, validate-security, markdown-lint]
     
     steps:
