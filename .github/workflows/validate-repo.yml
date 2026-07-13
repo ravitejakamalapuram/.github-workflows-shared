@@ -6,10 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  RUNNER_TOOL_CACHE: /Users/rkamalapuram/hostedtoolcache
+
 jobs:
   validate-actions:
     name: Validate Composite Actions
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -25,12 +28,12 @@ jobs:
       - name: Check YAML Syntax
         run: |
           echo "Validating all YAML files..."
-          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 yq empty
+          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 python3 -c 'import sys, yaml; [yaml.safe_load(open(f)) for f in sys.argv[1:]]'
           echo "✅ All YAML files are valid"
   
   validate-workflows:
     name: Validate Workflows
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -43,12 +46,12 @@ jobs:
       - name: Validate Workflow Syntax
         run: |
           echo "Validating workflow files..."
-          yq empty .github/workflows/*.yml
+          python3 -c 'import sys, yaml; [yaml.safe_load(open(f)) for f in sys.argv[1:]]' .github/workflows/*.yml
           echo "✅ All workflow files are valid"
   
   validate-scripts:
     name: Validate Scripts
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -69,7 +72,7 @@ jobs:
   
   validate-configs:
     name: Validate Configurations
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -83,7 +86,7 @@ jobs:
   
   validate-security:
     name: Security Checks
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -108,7 +111,7 @@ jobs:
   
   markdown-lint:
     name: Lint Documentation
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
@@ -122,7 +125,7 @@ jobs:
   
   all-checks-passed:
     name: All Checks Passed
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [validate-actions, validate-workflows, validate-scripts, validate-configs, validate-security, markdown-lint]
     
     steps:
