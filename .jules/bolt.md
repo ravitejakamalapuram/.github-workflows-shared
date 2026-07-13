@@ -53,3 +53,7 @@
 
 **Learning:** When refactoring inline Python scripts to `jq` for performance (e.g., updating JSON files), simply translating the mutation logic is not enough. If the original Python script conditionally tracked whether an update was necessary (e.g., `updated = True` only if a target element was found) before overwriting the file and echoing success, unconditionally overwriting with `jq` breaks this logic and causes misleading outputs.
 **Action:** When replacing Python state-tracking logic with `jq`, perform a preliminary boolean check using `jq -r` (e.g., `UPDATED=$(jq -r 'any(.modules[]; .type == "target")' "$FILE")`) and only execute the mutation and success echo if the condition is met.
+
+## 2026-07-13 - [Universal YAML Validation with yq]
+**Learning:** Using the `yq empty` command for fast YAML validation fails when executing on GitHub Actions environments that have the Go-based `mikefarah/yq` installed (e.g., Ubuntu runners), throwing an `Error: 1:1: lexer: invalid input text "empty"` because it expects an expression, not a command.
+**Action:** Replace `yq empty` with `yq "." > /dev/null` for robust, cross-platform YAML syntax validation in shell scripts. This evaluates the file without choking the parser and naturally exits with a non-zero status if the YAML is invalid.
