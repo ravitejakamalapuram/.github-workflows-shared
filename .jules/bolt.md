@@ -48,3 +48,8 @@
 
 **Learning:** Using inline Python (`python3 -c`) for JSON file updates in GitHub Actions introduces unnecessary interpreter startup overhead.
 **Action:** Replace inline Python scripts with `jq` for JSON manipulation (e.g. updating app-metadata.json) to eliminate python interpreter startup time, keeping workflows fast and lightweight.
+
+## 2024-06-08 - Preserve Conditional State Tracking when Migrating Python to jq
+
+**Learning:** When refactoring inline Python scripts to `jq` for performance (e.g., updating JSON files), simply translating the mutation logic is not enough. If the original Python script conditionally tracked whether an update was necessary (e.g., `updated = True` only if a target element was found) before overwriting the file and echoing success, unconditionally overwriting with `jq` breaks this logic and causes misleading outputs.
+**Action:** When replacing Python state-tracking logic with `jq`, perform a preliminary boolean check using `jq -r` (e.g., `UPDATED=$(jq -r 'any(.modules[]; .type == "target")' "$FILE")`) and only execute the mutation and success echo if the condition is met.
