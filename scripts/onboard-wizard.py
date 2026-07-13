@@ -2327,6 +2327,12 @@ INDEX_HTML = """<!DOCTYPE html>
             background: rgba(0, 241, 251, 0.15);
         }
 
+        .copy-btn-inline:focus-visible {
+            outline: 2px solid var(--accent-cyan);
+            outline-offset: 2px;
+            background: rgba(0, 241, 251, 0.15);
+        }
+
         /* Asset list */
         .asset-list {
             display: flex;
