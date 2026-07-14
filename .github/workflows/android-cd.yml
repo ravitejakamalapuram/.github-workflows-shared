@@ -97,21 +97,7 @@ jobs:
       - name: Calculate Android Version Code
         id: android-version
         run: |
-          # Get the new tag from version bump step
-          NEW_TAG="${{ steps.version.outputs.new-tag }}"
-          
-          # Remove 'v' prefix
-          VERSION="${NEW_TAG#v}"
-          
-          # Split into major, minor, patch
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          
-          # Calculate version code: MAJOR * 1000000 + MINOR * 1000 + PATCH
-          # This ensures version code always increments with tag version
-          # Example: v1.5.18 -> 1*1000000 + 5*1000 + 18 = 1005018
-          CODE=$((MAJOR * 1000000 + MINOR * 1000 + PATCH))
-          
-          echo "Version: $VERSION -> Version Code: $CODE"
+          CODE=$(git rev-list --count HEAD)
           echo "code=$CODE" >> $GITHUB_OUTPUT
         shell: bash
 
