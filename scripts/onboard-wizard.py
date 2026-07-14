@@ -2843,31 +2843,31 @@ INDEX_HTML = """<!DOCTYPE html>
 
                         <!-- Android Title (editable) -->
                         <div class="form-group" id="store-title-android-group" style="display: none; margin-top: 12px;">
-                            <label for="store-title-android">Play Store App Title*</label>
-                            <input type="text" id="store-title-android" placeholder="User-facing app name...">
+                            <label for="store-title-android">Play Store App Title <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                            <input type="text" id="store-title-android" placeholder="User-facing app name..." required aria-required="true">
                         </div>
 
                         <!-- Short Description (editable for android) -->
                         <div class="form-group" id="store-short-android-group" style="display: none; margin-top: 12px;">
-                            <label for="store-short-android">Short Description* (max 80 chars)</label>
-                            <input type="text" id="store-short-android" placeholder="Summary of what the app does...">
+                            <label for="store-short-android">Short Description <span style="color: var(--error);" aria-hidden="true">*</span> (max 80 chars)</label>
+                            <input type="text" id="store-short-android" placeholder="Summary of what the app does..." required aria-required="true">
                         </div>
 
                         <div class="form-group" style="margin-top: 12px;">
-                            <label for="store-detailed-desc" id="store-desc-label">Detailed Description*</label>
-                            <textarea id="store-detailed-desc" style="min-height: 120px;" placeholder="Describe the extension features, how to use it, and why users should install it..."></textarea>
+                            <label for="store-detailed-desc" id="store-desc-label">Detailed Description <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                            <textarea id="store-detailed-desc" style="min-height: 120px;" placeholder="Describe the extension features, how to use it, and why users should install it..." required aria-required="true"></textarea>
                         </div>
 
                         <div class="form-row" style="margin-top: 12px;">
                             <div class="form-group">
-                                <label for="store-category">Category*</label>
-                                <select id="store-category">
+                                <label for="store-category">Category <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                                <select id="store-category" required aria-required="true">
                                     <!-- Dynamically populated based on type -->
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label for="store-language">Default Language*</label>
-                                <select id="store-language">
+                                <label for="store-language">Default Language <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                                <select id="store-language" required aria-required="true">
                                     <option value="en">English</option>
                                     <option value="hi">Hindi</option>
                                     <option value="te">Telugu</option>
@@ -2884,40 +2884,40 @@ INDEX_HTML = """<!DOCTYPE html>
                         <h3 style="font-size: 14px; color: var(--accent-cyan); font-family: 'Outfit'; margin-bottom: 12px;">2. Privacy & Policies</h3>
                         
                         <div class="form-group" id="privacy-purpose-group">
-                            <label for="privacy-single-purpose">Single Purpose Description* (max 1000 chars)</label>
-                            <textarea id="privacy-single-purpose" style="min-height: 80px;" placeholder="Explain the single, narrow, and easy-to-understand purpose of your extension..."></textarea>
+                            <label for="privacy-single-purpose">Single Purpose Description <span style="color: var(--error);" aria-hidden="true">*</span> (max 1000 chars)</label>
+                            <textarea id="privacy-single-purpose" style="min-height: 80px;" placeholder="Explain the single, narrow, and easy-to-understand purpose of your extension..." required aria-required="true"></textarea>
                         </div>
                         
                         <div class="form-group" style="margin-top: 12px;">
-                            <label for="privacy-policy-url">Privacy Policy URL*</label>
-                            <input type="text" id="privacy-policy-url" placeholder="https://yourwebsite.com/privacy">
+                            <label for="privacy-policy-url">Privacy Policy URL <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                            <input type="text" id="privacy-policy-url" placeholder="https://yourwebsite.com/privacy" required aria-required="true">
                         </div>
 
                         <!-- Chrome Extension specific CWS privacy questions -->
                         <div id="cws-privacy-extensions" style="margin-top: 12px; display: none; flex-direction: column; gap: 12px;">
                             <div class="form-group">
-                                <label style="margin-bottom: 4px; display: block;">Are you using remote code?*</label>
+                                <label style="margin-bottom: 4px; display: block;">Are you using remote code? <span style="color: var(--error);" aria-hidden="true">*</span></label>
                                 <div style="display: flex; gap: 24px; align-items: center; margin-top: 4px;">
                                     <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; font-size: 12px;">
-                                        <input type="radio" name="privacy-remote-code" id="remote-code-no" value="no" checked onchange="toggleRemoteCodeJustification(false)">
+                                        <input type="radio" name="privacy-remote-code" id="remote-code-no" value="no" checked onchange="toggleRemoteCodeJustification(false)" required aria-required="true">
                                         <span>No, I am not using remote code</span>
                                     </label>
                                     <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; font-size: 12px;">
-                                        <input type="radio" name="privacy-remote-code" id="remote-code-yes" value="yes" onchange="toggleRemoteCodeJustification(true)">
+                                        <input type="radio" name="privacy-remote-code" id="remote-code-yes" value="yes" onchange="toggleRemoteCodeJustification(true)" required aria-required="true">
                                         <span>Yes, I am using remote code</span>
                                     </label>
                                 </div>
                             </div>
 
                             <div class="form-group" id="privacy-remote-justification-group" style="display: none;">
-                                <label for="privacy-remote-justification">Remote Code Justification* (max 1000 chars)</label>
-                                <textarea id="privacy-remote-justification" style="min-height: 80px;" placeholder="Explain why your extension requires remote code and what functions it performs..."></textarea>
+                                <label for="privacy-remote-justification">Remote Code Justification <span style="color: var(--error);" aria-hidden="true">*</span> (max 1000 chars)</label>
+                                <textarea id="privacy-remote-justification" style="min-height: 80px;" placeholder="Explain why your extension requires remote code and what functions it performs..." required aria-required="true"></textarea>
                             </div>
 
                             <div class="form-group">
                                 <label style="display: flex; align-items: flex-start; gap: 8px; font-weight: normal; cursor: pointer; font-size: 12px;">
-                                    <input type="checkbox" id="privacy-certify-policy" style="margin-top: 3px;">
-                                    <span>I certify that my data usage complies with the Chrome Web Store Developer Program Policies.*</span>
+                                    <input type="checkbox" id="privacy-certify-policy" style="margin-top: 3px;" required aria-required="true">
+                                    <span>I certify that my data usage complies with the Chrome Web Store Developer Program Policies. <span style="color: var(--error);" aria-hidden="true">*</span></span>
                                 </label>
                             </div>
                         </div>
@@ -2930,16 +2930,16 @@ INDEX_HTML = """<!DOCTYPE html>
                         
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="dist-visibility">Visibility / Publish State*</label>
-                                <select id="dist-visibility">
+                                <label for="dist-visibility">Visibility / Publish State <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                                <select id="dist-visibility" required aria-required="true">
                                     <option value="public">Public (Everyone can see it)</option>
                                     <option value="unlisted">Unlisted (Only users with link)</option>
                                     <option value="private">Private (Only developer account / test group)</option>
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label for="dist-regions">Target Regions*</label>
-                                <select id="dist-regions">
+                                <label for="dist-regions">Target Regions <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                                <select id="dist-regions" required aria-required="true">
                                     <option value="all">All Regions / Global</option>
                                     <option value="selected">Selected Regions (India, USA)</option>
                                 </select>
@@ -2958,8 +2958,8 @@ INDEX_HTML = """<!DOCTYPE html>
                         </div>
 
                         <div class="form-group" style="margin-top: 12px;">
-                            <label for="access-test-instructions">Reviewer Test Instructions*</label>
-                            <textarea id="access-test-instructions" style="min-height: 80px;" placeholder="Provide step-by-step instructions on how to test the extension features. Mention if mock credentials or setup is required..."></textarea>
+                            <label for="access-test-instructions">Reviewer Test Instructions <span style="color: var(--error);" aria-hidden="true">*</span></label>
+                            <textarea id="access-test-instructions" style="min-height: 80px;" placeholder="Provide step-by-step instructions on how to test the extension features. Mention if mock credentials or setup is required..." required aria-required="true"></textarea>
                         </div>
                     </div>
 
