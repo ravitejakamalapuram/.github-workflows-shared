@@ -155,6 +155,8 @@ jobs:
 
       - name: Commit and Push Updates
         if: success() && inputs.deploy-to-play
+        env:
+          PACKAGE_NAME: ${{ inputs.package-name }}
         run: |
           if [ -f "app-metadata.json" ]; then
             FILE="app-metadata.json"
