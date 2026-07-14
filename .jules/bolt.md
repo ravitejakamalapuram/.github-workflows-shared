@@ -48,3 +48,7 @@
 
 **Learning:** Using inline Python (`python3 -c`) for JSON file updates in GitHub Actions introduces unnecessary interpreter startup overhead.
 **Action:** Replace inline Python scripts with `jq` for JSON manipulation (e.g. updating app-metadata.json) to eliminate python interpreter startup time, keeping workflows fast and lightweight.
+
+## 2026-06-30 - Optimize JQ execution inside nested CI loops
+**Learning:** Running process substitutions with commands like `jq` inside nested `while` loops over files (e.g., `done < <(echo "$VAR" | jq ...)`) causes N x M process spawns, severely degrading CI execution speed.
+**Action:** Always cache the command output into a shell variable beforehand and use a heredoc (`done <<< "$CACHED_VAR"`) within loops to avoid redundant process initialization.

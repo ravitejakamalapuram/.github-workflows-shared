@@ -2327,6 +2327,12 @@ INDEX_HTML = """<!DOCTYPE html>
             background: rgba(0, 241, 251, 0.15);
         }
 
+        .copy-btn-inline:focus-visible {
+            outline: 2px solid var(--accent-cyan);
+            outline-offset: 2px;
+            background: rgba(0, 241, 251, 0.15);
+        }
+
         /* Asset list */
         .asset-list {
             display: flex;
@@ -2526,7 +2532,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div class="controls-row">
                     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; flex: 1;">
                         <div class="search-container">
-                            <span class="search-icon" aria-hidden="true">🔍</span>
+                            <span class="search-icon">🔍</span>
                             <input type="text" id="search-input" class="search-input" placeholder="Search applications..." aria-label="Search applications" oninput="handleSearch(this.value)">
                         </div>
                         <div class="dashboard-filters" style="margin: 0; padding: 0;">
@@ -3259,6 +3265,25 @@ INDEX_HTML = """<!DOCTYPE html>
             }
         }
 
+        function showToast(message, isError = false) {
+            const toast = document.createElement("div");
+            toast.setAttribute("aria-live", "polite");
+            toast.style.position = "fixed";
+            toast.style.bottom = "20px";
+            toast.style.right = "20px";
+            toast.style.background = isError ? "var(--error)" : "var(--success)";
+            toast.style.color = "white";
+            toast.style.padding = "12px 24px";
+            toast.style.borderRadius = "8px";
+            toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+            toast.style.zIndex = "1000";
+            toast.style.fontWeight = "bold";
+            toast.style.whiteSpace = "pre-line";
+            toast.innerText = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
         function generatePrivacyHtml() {
             const repo = state.selectedRepo;
             fetch('/api/generate-privacy-html', {
@@ -3269,13 +3294,13 @@ INDEX_HTML = """<!DOCTYPE html>
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    alert("✅ Generated privacy.html in your repository root.\\n\\nTo make it public and reachable:\\n1. Commit and push 'privacy.html' to GitHub.\\n2. Ensure GitHub Pages is enabled on your repository settings.");
+                    showToast("✅ Generated privacy.html in your repository root.\n\nTo make it public:\n1. Commit and push it.\n2. Enable GitHub Pages.");
                     renderPreflightChecklist();
                 } else {
-                    alert("❌ Failed to generate privacy.html: " + data.error);
+                    showToast("❌ Failed to generate privacy.html: " + data.error, true);
                 }
             })
-            .catch(err => alert("Error: " + err));
+            .catch(err => showToast("Error: " + err, true));
         }
 
         function switchTab(tabName) {
