@@ -2016,7 +2016,7 @@ INDEX_HTML = """<!DOCTYPE html>
             box-shadow: 0 4px 12px var(--accent-gold-glow);
         }
 
-        .btn-primary:hover:not(:disabled) {
+        .btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
             transform: translateY(-1px);
             background: #ffe16d;
             box-shadow: 0 6px 20px rgba(255, 215, 0, 0.35);
@@ -2028,12 +2028,12 @@ INDEX_HTML = """<!DOCTYPE html>
             color: var(--text-primary);
         }
 
-        .btn-secondary:hover:not(:disabled) {
+        .btn-secondary:hover:not(:disabled):not([aria-disabled="true"]) {
             background: rgba(98, 0, 234, 0.1);
             box-shadow: 0 0 12px var(--accent-purple-glow);
         }
 
-        .btn:disabled {
+        .btn:disabled, .btn[aria-disabled="true"] {
             opacity: 0.4;
             cursor: not-allowed;
             transform: none !important;
@@ -3061,7 +3061,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                 <div class="btn-row" style="margin-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 20px;">
                     <div></div>
-                    <button class="btn btn-primary" id="btn-provision-secrets" onclick="provisionSecrets()" disabled style="max-width: 280px;">
+                    <button class="btn btn-primary" id="btn-provision-secrets" onclick="provisionSecrets()" aria-disabled="true" title="Authenticate with Google OAuth first to enable secret provisioning." style="max-width: 280px;">
                         🚀 Send API Secrets to GitHub Repository
                     </button>
                 </div>
@@ -4858,7 +4858,8 @@ INDEX_HTML = """<!DOCTYPE html>
                             
                             text.innerHTML = `<span class="badge badge-success">✓ Google Account Connected!</span> Refresh Token captured. Ready to provision secrets.`;
                             btn.style.display = "none";
-                            nextBtn.disabled = false;
+                            nextBtn.setAttribute("aria-disabled", "false");
+                            nextBtn.removeAttribute("title");
                         } else if (data.status === "error") {
                             clearInterval(pollInterval);
                             text.innerText = "OAuth Failed: " + data.error;
@@ -4872,6 +4873,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
         function provisionSecrets() {
             const finalBtn = document.getElementById("btn-provision-secrets");
+            if (finalBtn.getAttribute("aria-disabled") === "true") return;
             const alertBox = document.getElementById("secrets-alert-box");
 
             const meta = state.selectedRepo.metadata;
