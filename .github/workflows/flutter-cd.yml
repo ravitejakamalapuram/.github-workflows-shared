@@ -215,7 +215,6 @@ jobs:
         run: |
           git add pubspec.yaml ${{ inputs.update-dart-file }} CHANGELOG.md fastlane/ app-metadata.json .app-metadata.json 2>/dev/null || true
           git commit -m "chore(release): bump version to ${{ steps.version.outputs.new-version }}+${{ steps.version.outputs.new-build-number }} [skip-release]"
-          git pull --rebase origin main
           git push origin main
         shell: bash
 
