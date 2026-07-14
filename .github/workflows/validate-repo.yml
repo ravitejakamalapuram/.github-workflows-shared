@@ -28,7 +28,7 @@ jobs:
       - name: Check YAML Syntax
         run: |
           echo "Validating all YAML files..."
-          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 yq empty
+          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 -n1 yq eval '.' > /dev/null
           echo "✅ All YAML files are valid"
   
   validate-workflows:
@@ -46,7 +46,7 @@ jobs:
       - name: Validate Workflow Syntax
         run: |
           echo "Validating workflow files..."
-          yq empty .github/workflows/*.yml
+          for file in .github/workflows/*.yml; do yq eval '.' "$file" > /dev/null; done
           echo "✅ All workflow files are valid"
   
   validate-scripts:
