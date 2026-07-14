@@ -25,7 +25,7 @@ jobs:
       - name: Check YAML Syntax
         run: |
           echo "Validating all YAML files..."
-          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 -n1 yq eval '.' > /dev/null
+          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 yq "." > /dev/null
           echo "✅ All YAML files are valid"
   
   validate-workflows:
@@ -43,7 +43,7 @@ jobs:
       - name: Validate Workflow Syntax
         run: |
           echo "Validating workflow files..."
-          for file in .github/workflows/*.yml; do yq eval '.' "$file" > /dev/null; done
+          yq "." .github/workflows/*.yml > /dev/null
           echo "✅ All workflow files are valid"
   
   validate-scripts:
@@ -78,7 +78,7 @@ jobs:
       - name: Validate JSON Files
         run: |
           echo "Validating JSON config files..."
-          find config standards -name "*.json" -print0 | xargs -0 jq empty
+          find config standards -name "*.json" -print0 | xargs -0 jq "." > /dev/null
           echo "✅ All JSON files are valid"
   
   validate-security:
