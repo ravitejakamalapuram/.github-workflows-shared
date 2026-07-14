@@ -69,6 +69,8 @@ runs:
     
     - name: Flutter Setup (Clean & Pub Get)
       id: flutter-setup
+      env:
+        RUN_GEN_L10N: ${{ inputs.run-gen-l10n }}
       run: |
         echo "::group::Flutter Clean"
         flutter clean
@@ -78,7 +80,7 @@ runs:
         flutter pub get
         echo "::endgroup::"
         
-        if [ "${{ inputs.run-gen-l10n }}" == "true" ]; then
+        if [ "$RUN_GEN_L10N" == "true" ]; then
           echo "::group::Flutter Gen L10n"
           flutter gen-l10n || echo "⚠️ gen-l10n failed or not configured"
           echo "::endgroup::"
@@ -88,6 +90,8 @@ runs:
     
     - name: Clear corrupted pub cache and retry
       if: failure() && steps.flutter-setup.outcome == 'failure' && inputs.auto-fix-corruption == 'true'
+      env:
+        RUN_GEN_L10N: ${{ inputs.run-gen-l10n }}
       run: |
         echo "⚠️ Detected pub cache corruption. Clearing and retrying..."
         
@@ -100,7 +104,7 @@ runs:
         flutter clean
         flutter pub get
         
-        if [ "${{ inputs.run-gen-l10n }}" == "true" ]; then
+        if [ "$RUN_GEN_L10N" == "true" ]; then
           flutter gen-l10n || echo "⚠️ gen-l10n failed or not configured"
         fi
         
