@@ -1,0 +1,80 @@
+name: Reusable Cloudflare Pages Deploy
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: 'Cloudflare Pages project name'
+        required: true
+        type: string
+      directory:
+        description: 'Directory to deploy'
+        required: false
+        type: string
+        default: '.'
+      production-branch:
+        description: 'Production branch name'
+        required: false
+        type: string
+        default: 'main'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+    secrets:
+      cloudflare-api-token:
+        description: 'Cloudflare API Token'
+        required: true
+      cloudflare-account-id:
+        description: 'Cloudflare Account ID'
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Pages
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 10
+    
+    permissions:
+      contents: read
+      deployments: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Validate required files exist
+        env:
+          INPUT_DIRECTORY: ${{ inputs.directory }}
+        run: |
+          set -e
+          if [ ! -d "$INPUT_DIRECTORY" ]; then
+            echo "::error::Directory $INPUT_DIRECTORY not found"
+            exit 1
+          fi
+          echo "✅ Directory validated: $INPUT_DIRECTORY"
+        shell: bash
+      
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.cloudflare-api-token }}
+          accountId: ${{ secrets.cloudflare-account-id }}
+          projectName: ${{ inputs.project-name }}
+          directory: ${{ inputs.directory }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref_name }}
+          wranglerVersion: '3'
+      
+      - name: Deployment Summary
+        env:
+          INPUT_PROJECT_NAME: ${{ inputs.project-name }}
+          INPUT_DIRECTORY: ${{ inputs.directory }}
+        run: |
+          echo "## 🌐 Cloudflare Pages Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project**: $INPUT_PROJECT_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Directory**: $INPUT_DIRECTORY" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
+        shell: bash

@@ -1,0 +1,111 @@
+name: Reusable Cloudflare Worker Deploy
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Working directory containing wrangler.toml'
+        required: false
+        type: string
+        default: '.'
+      environment:
+        description: 'Deployment environment (production, staging, etc.)'
+        required: false
+        type: string
+        default: 'production'
+      wrangler-version:
+        description: 'Wrangler version to use'
+        required: false
+        type: string
+        default: '3'
+      runner-type:
+        description: 'Runner type to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      health-check-url:
+        description: 'Health check URL to verify deployment (optional)'
+        required: false
+        type: string
+        default: ''
+      health-check-timeout:
+        description: 'Health check timeout in seconds'
+        required: false
+        type: number
+        default: 10
+    secrets:
+      cloudflare-api-token:
+        description: 'Cloudflare API Token'
+        required: true
+      cloudflare-account-id:
+        description: 'Cloudflare Account ID'
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Workers
+    runs-on: ${{ inputs.runner-type }}
+    timeout-minutes: 10
+    
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Validate wrangler.toml exists
+        env:
+          WORKING_DIR: ${{ inputs.working-directory }}
+        run: |
+          set -e
+          if [ ! -f "$WORKING_DIR/wrangler.toml" ]; then
+            echo "::error::wrangler.toml not found in $WORKING_DIR"
+            exit 1
+          fi
+          echo "✅ wrangler.toml validated"
+        shell: bash
+      
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.cloudflare-api-token }}
+          accountId: ${{ secrets.cloudflare-account-id }}
+          workingDirectory: ${{ inputs.working-directory }}
+          command: deploy
+          wranglerVersion: ${{ inputs.wrangler-version }}
+      
+      - name: Verify deployment health check
+        if: inputs.health-check-url != ''
+        env:
+          HEALTH_CHECK_URL: ${{ inputs.health-check-url }}
+          HEALTH_CHECK_TIMEOUT: ${{ inputs.health-check-timeout }}
+        run: |
+          set -e
+          echo "⏳ Waiting 5 seconds for deployment propagation..."
+          sleep 5
+          
+          echo "Testing health endpoint: $HEALTH_CHECK_URL"
+          if ! curl -f --connect-timeout 5 --max-time "$HEALTH_CHECK_TIMEOUT" "$HEALTH_CHECK_URL"; then
+            echo "❌ Health check failed"
+            exit 1
+          fi
+          echo "✅ Health check passed"
+        shell: bash
+      
+      - name: Deployment Summary
+        env:
+          WORKING_DIR: ${{ inputs.working-directory }}
+          ENV: ${{ inputs.environment }}
+          WRANGLER_VERSION: ${{ inputs.wrangler-version }}
+          HEALTH_CHECK_URL: ${{ inputs.health-check-url }}
+        run: |
+          echo "## ⚙️ Cloudflare Worker Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Working Directory**: $WORKING_DIR" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: $ENV" >> $GITHUB_STEP_SUMMARY
+          echo "- **Wrangler Version**: $WRANGLER_VERSION" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$HEALTH_CHECK_URL" ]; then
+            echo "- **Health Check**: ✅ Passed ($HEALTH_CHECK_URL)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Status**: ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
+        shell: bash

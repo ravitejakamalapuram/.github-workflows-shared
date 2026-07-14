@@ -185,6 +185,8 @@ jobs:
 
       - name: Update Metadata to Published
         if: steps.check_skip.outputs.skip != 'true' && success()
+        env:
+          PACKAGE_NAME: ${{ inputs.package-name }}
         run: |
           python3 -c "
           import json, os
@@ -198,7 +200,7 @@ jobs:
               for mod in data.get('modules', []):
                   if mod.get('type') in ['flutter-app', 'android-app']:
                       mod['status'] = 'published'
-                      store_id = '${{ inputs.package-name }}'
+                      store_id = os.getenv('PACKAGE_NAME')
                       if store_id:
                           mod['storeId'] = store_id
                           mod['storeUrl'] = f'https://play.google.com/store/apps/details?id={store_id}'
@@ -212,8 +214,11 @@ jobs:
 
       - name: Commit Version Bump
         if: steps.check_skip.outputs.skip != 'true'
+        env:
+          UPDATE_DART_FILE: ${{ inputs.update-dart-file }}
         run: |
-          git add pubspec.yaml ${{ inputs.update-dart-file }} CHANGELOG.md fastlane/ app-metadata.json .app-metadata.json 2>/dev/null || true
+          git add pubspec.yaml CHANGELOG.md fastlane/ app-metadata.json .app-metadata.json 2>/dev/null || true
+          [ -n "$UPDATE_DART_FILE" ] && git add "$UPDATE_DART_FILE" 2>/dev/null || true
           git commit -m "chore(release): bump version to ${{ steps.version.outputs.new-version }}+${{ steps.version.outputs.new-build-number }} [skip-release]"
           git push origin main
         shell: bash
@@ -255,8 +260,10 @@ jobs:
 
     steps:
       - name: Validate Tag Input
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
-          if [ -z "${{ inputs.tag }}" ]; then
+          if [ -z "$TAG" ]; then
             echo "::error::Tag is required for deploy-tag action"
             exit 1
           fi
@@ -270,8 +277,9 @@ jobs:
 
       - name: Get version from tag
         id: version
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
-          TAG="${{ inputs.tag }}"
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         shell: bash
@@ -318,6 +326,8 @@ jobs:
 
       - name: Commit and Push Updates
         if: success()
+        env:
+          PACKAGE_NAME: ${{ inputs.package-name }}
         run: |
           python3 -c "
           import json, os
@@ -331,7 +341,7 @@ jobs:
               for mod in data.get('modules', []):
                   if mod.get('type') in ['flutter-app', 'android-app']:
                       mod['status'] = 'published'
-                      store_id = '${{ inputs.package-name }}'
+                      store_id = os.getenv('PACKAGE_NAME')
                       if store_id:
                           mod['storeId'] = store_id
                           mod['storeUrl'] = f'https://play.google.com/store/apps/details?id={store_id}'
@@ -382,6 +392,8 @@ jobs:
 
       - name: Commit and Push Updates
         if: success()
+        env:
+          PACKAGE_NAME: ${{ inputs.package-name }}
         run: |
           python3 -c "
           import json, os
@@ -395,7 +407,7 @@ jobs:
               for mod in data.get('modules', []):
                   if mod.get('type') in ['flutter-app', 'android-app']:
                       mod['status'] = 'published'
-                      store_id = '${{ inputs.package-name }}'
+                      store_id = os.getenv('PACKAGE_NAME')
                       if store_id:
                           mod['storeId'] = store_id
                           mod['storeUrl'] = f'https://play.google.com/store/apps/details?id={store_id}'
