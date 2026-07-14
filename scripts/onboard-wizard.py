@@ -3259,6 +3259,25 @@ INDEX_HTML = """<!DOCTYPE html>
             }
         }
 
+        function showToast(message, isError = false) {
+            const toast = document.createElement("div");
+            toast.setAttribute("aria-live", "polite");
+            toast.style.position = "fixed";
+            toast.style.bottom = "20px";
+            toast.style.right = "20px";
+            toast.style.background = isError ? "var(--error)" : "var(--success)";
+            toast.style.color = "white";
+            toast.style.padding = "12px 24px";
+            toast.style.borderRadius = "8px";
+            toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+            toast.style.zIndex = "1000";
+            toast.style.fontWeight = "bold";
+            toast.style.whiteSpace = "pre-line";
+            toast.innerText = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
         function generatePrivacyHtml() {
             const repo = state.selectedRepo;
             fetch('/api/generate-privacy-html', {
@@ -3269,13 +3288,13 @@ INDEX_HTML = """<!DOCTYPE html>
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    alert("✅ Generated privacy.html in your repository root.\\n\\nTo make it public and reachable:\\n1. Commit and push 'privacy.html' to GitHub.\\n2. Ensure GitHub Pages is enabled on your repository settings.");
+                    showToast("✅ Generated privacy.html in your repository root.\n\nTo make it public:\n1. Commit and push it.\n2. Enable GitHub Pages.");
                     renderPreflightChecklist();
                 } else {
-                    alert("❌ Failed to generate privacy.html: " + data.error);
+                    showToast("❌ Failed to generate privacy.html: " + data.error, true);
                 }
             })
-            .catch(err => alert("Error: " + err));
+            .catch(err => showToast("Error: " + err, true));
         }
 
         function switchTab(tabName) {

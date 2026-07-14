@@ -43,13 +43,14 @@ jobs:
       
       - name: Detect changes
         id: changes
+        env:
+          PATHS: ${{ inputs.paths-to-check }}
+          NAMES: ${{ inputs.output-names }}
+          EXCLUDES: ${{ inputs.exclude-patterns }}
         run: |
           set -e
           
-          # Parse inputs
-          PATHS='${{ inputs.paths-to-check }}'
-          NAMES='${{ inputs.output-names }}'
-          EXCLUDES='${{ inputs.exclude-patterns }}'
+          # Parse inputs from env variables to prevent command injection
           
           # Get changed files
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -69,6 +70,7 @@ jobs:
           # Parse paths and names arrays
           PATHS_ARRAY=$(echo "$PATHS" | jq -r '.[]')
           NAMES_ARRAY=$(echo "$NAMES" | jq -r '.[]')
+          EXCLUDES_ARRAY=$(if [ "$EXCLUDES" != "[]" ]; then echo "$EXCLUDES" | jq -r '.[]'; fi)
           
           # Iterate through paths
           INDEX=0
@@ -88,7 +90,7 @@ jobs:
                       EXCLUDED=true
                       break
                     fi
-                  done < <(echo "$EXCLUDES" | jq -r '.[]')
+                  done <<< "$EXCLUDES_ARRAY"
                 fi
                 
                 if [ "$EXCLUDED" = false ]; then

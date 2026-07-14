@@ -49,11 +49,6 @@
 **Learning:** Using inline Python (`python3 -c`) for JSON file updates in GitHub Actions introduces unnecessary interpreter startup overhead.
 **Action:** Replace inline Python scripts with `jq` for JSON manipulation (e.g. updating app-metadata.json) to eliminate python interpreter startup time, keeping workflows fast and lightweight.
 
-## 2024-06-08 - Preserve Conditional State Tracking when Migrating Python to jq
-
-**Learning:** When refactoring inline Python scripts to `jq` for performance (e.g., updating JSON files), simply translating the mutation logic is not enough. If the original Python script conditionally tracked whether an update was necessary (e.g., `updated = True` only if a target element was found) before overwriting the file and echoing success, unconditionally overwriting with `jq` breaks this logic and causes misleading outputs.
-**Action:** When replacing Python state-tracking logic with `jq`, perform a preliminary boolean check using `jq -r` (e.g., `UPDATED=$(jq -r 'any(.modules[]; .type == "target")' "$FILE")`) and only execute the mutation and success echo if the condition is met.
-
-## 2026-07-13 - [Universal YAML Validation with yq]
-**Learning:** Using the `yq empty` command for fast YAML validation fails when executing on GitHub Actions environments that have the Go-based `mikefarah/yq` installed (e.g., Ubuntu runners), throwing an `Error: 1:1: lexer: invalid input text "empty"` because it expects an expression, not a command.
-**Action:** Replace `yq empty` with `yq "." > /dev/null` for robust, cross-platform YAML syntax validation in shell scripts. This evaluates the file without choking the parser and naturally exits with a non-zero status if the YAML is invalid.
+## 2026-06-30 - Optimize JQ execution inside nested CI loops
+**Learning:** Running process substitutions with commands like `jq` inside nested `while` loops over files (e.g., `done < <(echo "$VAR" | jq ...)`) causes N x M process spawns, severely degrading CI execution speed.
+**Action:** Always cache the command output into a shell variable beforehand and use a heredoc (`done <<< "$CACHED_VAR"`) within loops to avoid redundant process initialization.
