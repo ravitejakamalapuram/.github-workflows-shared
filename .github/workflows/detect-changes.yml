@@ -43,13 +43,14 @@ jobs:
       
       - name: Detect changes
         id: changes
+        env:
+          PATHS: ${{ inputs.paths-to-check }}
+          NAMES: ${{ inputs.output-names }}
+          EXCLUDES: ${{ inputs.exclude-patterns }}
         run: |
           set -e
           
-          # Parse inputs
-          PATHS='${{ inputs.paths-to-check }}'
-          NAMES='${{ inputs.output-names }}'
-          EXCLUDES='${{ inputs.exclude-patterns }}'
+          # Parse inputs from env variables to prevent command injection
           
           # Get changed files
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
