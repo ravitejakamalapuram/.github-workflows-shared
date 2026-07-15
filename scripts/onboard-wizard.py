@@ -4356,12 +4356,12 @@ INDEX_HTML = """<!DOCTYPE html>
                     
                     fetchReposAndStatus();
                 } else {
-                    alert("Failed to save changes: " + data.error);
+                    showToast("Failed to save changes: " + data.error, true);
                 }
             })
             .catch(err => {
                 console.error("Error saving metadata:", err);
-                alert("Connection error: " + err);
+                showToast("Connection error: " + err, true);
             });
         }
 
@@ -4402,7 +4402,7 @@ INDEX_HTML = """<!DOCTYPE html>
         function triggerBuild() {
             const buildScript = document.getElementById("package-build-script").value.trim();
             if (!buildScript) {
-                alert("Please enter a build script first.");
+                showToast("Please enter a build script first.", true);
                 return;
             }
 
