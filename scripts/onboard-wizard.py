@@ -4336,32 +4336,16 @@ INDEX_HTML = """<!DOCTYPE html>
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    const toast = document.createElement("div");
-                    toast.style.position = "fixed";
-                    toast.style.bottom = "20px";
-                    toast.style.right = "20px";
-                    toast.style.background = "var(--success)";
-                    toast.style.color = "white";
-                    toast.style.padding = "12px 24px";
-                    toast.style.borderRadius = "8px";
-                    toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
-                    toast.style.zIndex = "1000";
-                    toast.style.fontWeight = "bold";
-                    toast.innerText = `✓ Saved changes to app-metadata.json`;
-                    document.body.appendChild(toast);
-                    
-                    setTimeout(() => {
-                        toast.remove();
-                    }, 3000);
+                    showToast("✓ Saved changes to app-metadata.json");
                     
                     fetchReposAndStatus();
                 } else {
-                    alert("Failed to save changes: " + data.error);
+                    showToast("Failed to save changes: " + data.error, true);
                 }
             })
             .catch(err => {
                 console.error("Error saving metadata:", err);
-                alert("Connection error: " + err);
+                showToast("Connection error: " + err, true);
             });
         }
 
@@ -4402,7 +4386,7 @@ INDEX_HTML = """<!DOCTYPE html>
         function triggerBuild() {
             const buildScript = document.getElementById("package-build-script").value.trim();
             if (!buildScript) {
-                alert("Please enter a build script first.");
+                showToast("Please enter a build script first.", true);
                 return;
             }
 
