@@ -25,7 +25,7 @@ jobs:
       - name: Check YAML Syntax
         run: |
           echo "Validating all YAML files..."
-          find . \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 -n1 yq eval '.' > /dev/null
+          find . -type f \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 -n1 yq eval '.' > /dev/null
           echo "✅ All YAML files are valid"
   
   validate-workflows:
