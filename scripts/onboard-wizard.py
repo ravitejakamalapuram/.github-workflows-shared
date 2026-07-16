@@ -4767,6 +4767,7 @@ INDEX_HTML = """<!DOCTYPE html>
             navigator.clipboard.writeText(input.value).then(() => {
                 const btn = Array.from(document.querySelectorAll('.copy-btn-inline')).find(b => b.previousElementSibling === input || b.previousElementSibling.firstElementChild === input || b.parentElement.firstElementChild === input);
                 if (btn) {
+                    btn.setAttribute("aria-live", "polite");
                     const originalText = btn.innerText;
                     btn.innerText = 'Copied!';
                     setTimeout(() => {
