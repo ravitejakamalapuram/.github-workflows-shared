@@ -37,11 +37,15 @@ runs:
   steps:
     - name: Determine Commit Range
       id: range
+      env:
+        COMMIT_RANGE: ${{ inputs.commit-range }}
+        EVENT_BEFORE: ${{ github.event.before }}
+        EVENT_AFTER: ${{ github.event.after }}
       run: |
-        if [ "${{ inputs.commit-range }}" == "auto" ]; then
+        if [ "$COMMIT_RANGE" == "auto" ]; then
           # Auto-detect range
-          PREV_SHA="${{ github.event.before }}"
-          CURR_SHA="${{ github.event.after }}"
+          PREV_SHA="$EVENT_BEFORE"
+          CURR_SHA="$EVENT_AFTER"
           
           if [ "$PREV_SHA" == "0000000000000000000000000000000000000000" ] || [ -z "$PREV_SHA" ]; then
             LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -54,7 +58,7 @@ runs:
             RANGE="$PREV_SHA..$CURR_SHA"
           fi
         else
-          RANGE="${{ inputs.commit-range }}"
+          RANGE="$COMMIT_RANGE"
         fi
         
         echo "range=$RANGE" >> $GITHUB_OUTPUT
@@ -114,13 +118,15 @@ runs:
       shell: bash
     
     - name: Update Changelog File
+      env:
+        OUTPUT_FILE: ${{ inputs.output-file }}
       run: |
         DATE=$(date +"%Y-%m-%d")
         
         # Create or update main changelog
-        if [ ! -f "${{ inputs.output-file }}" ]; then
-          echo "# Changelog" > "${{ inputs.output-file }}"
-          echo "" >> "${{ inputs.output-file }}"
+        if [ ! -f "$OUTPUT_FILE" ]; then
+          echo "# Changelog" > "$OUTPUT_FILE"
+          echo "" >> "$OUTPUT_FILE"
         fi
         
         # Prepend new changes
@@ -129,16 +135,16 @@ runs:
           echo ""
           cat temp_changelog.md
           echo ""
-          tail -n +2 "${{ inputs.output-file }}" || true
+          tail -n +2 "$OUTPUT_FILE" || true
         } > temp_full_changelog.md
         
-        echo "# Changelog" > "${{ inputs.output-file }}"
-        echo "" >> "${{ inputs.output-file }}"
-        cat temp_full_changelog.md >> "${{ inputs.output-file }}"
+        echo "# Changelog" > "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        cat temp_full_changelog.md >> "$OUTPUT_FILE"
         
         rm -f temp_changelog.md temp_full_changelog.md
         
-        echo "✅ Changelog file updated: ${{ inputs.output-file }}"
+        echo "✅ Changelog file updated: $OUTPUT_FILE"
       shell: bash
 
 branding:
