@@ -4351,16 +4351,25 @@ INDEX_HTML = """<!DOCTYPE html>
 
         function setupBuildExecutorPanel() {
             const nameEl = document.getElementById("build-module-name-label");
+            const buildBtn = document.getElementById("btn-run-build");
             
             if (state.selectedRepo.metadata_exists && state.selectedRepo.metadata.modules) {
                 const mod = state.selectedRepo.metadata.modules[state.selectedModuleIdx];
                 if (mod) {
                     nameEl.innerText = `${state.selectedRepo.appName} — ${mod.name}`;
-                    document.getElementById("btn-run-build").disabled = !document.getElementById("package-build-script").value;
+                    const isDisabled = !document.getElementById("package-build-script").value;
+                    if (isDisabled) {
+                        buildBtn.setAttribute("aria-disabled", "true");
+                        buildBtn.setAttribute("title", "Enter a build script first.");
+                    } else {
+                        buildBtn.setAttribute("aria-disabled", "false");
+                        buildBtn.removeAttribute("title");
+                    }
                 }
             } else {
                 nameEl.innerText = `${state.selectedRepo.appName}`;
-                document.getElementById("btn-run-build").disabled = true;
+                buildBtn.setAttribute("aria-disabled", "true");
+                buildBtn.setAttribute("title", "Enter a build script first.");
             }
         }
 
@@ -4384,6 +4393,9 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         function triggerBuild() {
+            const btn = document.getElementById("btn-run-build");
+            if (btn.getAttribute("aria-disabled") === "true") return;
+
             const buildScript = document.getElementById("package-build-script").value.trim();
             if (!buildScript) {
                 showToast("Please enter a build script first.", true);
@@ -4392,10 +4404,9 @@ INDEX_HTML = """<!DOCTYPE html>
 
             const consoleOutput = document.getElementById("build-terminal-output");
             const badge = document.getElementById("build-status-badge");
-            const btn = document.getElementById("btn-run-build");
             const terminalPanel = document.querySelector(".terminal-panel");
             
-            btn.disabled = true;
+            btn.setAttribute("aria-disabled", "true");
             if (terminalPanel) terminalPanel.classList.add("active-build");
             badge.style.display = "inline-flex";
             badge.className = "badge badge-cyan";
@@ -4419,7 +4430,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     consoleOutput.innerHTML += colorizeLog(`❌ Failed to trigger build: ${data.error}`);
                     badge.className = "badge badge-error";
                     badge.innerHTML = "❌ Error";
-                    btn.disabled = false;
+                    btn.setAttribute("aria-disabled", "false");
                     if (terminalPanel) terminalPanel.classList.remove("active-build");
                 }
             })
@@ -4427,7 +4438,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 consoleOutput.innerHTML += colorizeLog(`❌ Connection error triggering build: ${err}`);
                 badge.className = "badge badge-error";
                 badge.innerHTML = "❌ Failed";
-                btn.disabled = false;
+                btn.setAttribute("aria-disabled", "false");
                 if (terminalPanel) terminalPanel.classList.remove("active-build");
             });
         }
@@ -4450,7 +4461,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                             if (data.status !== "running") {
                                 clearInterval(state.activeBuildInterval);
-                                btn.disabled = false;
+                                btn.setAttribute("aria-disabled", "false");
                                 if (terminalPanel) terminalPanel.classList.remove("active-build");
                                 
                                 if (data.status === "success") {
