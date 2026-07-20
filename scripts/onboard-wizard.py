@@ -4356,11 +4356,20 @@ INDEX_HTML = """<!DOCTYPE html>
                 const mod = state.selectedRepo.metadata.modules[state.selectedModuleIdx];
                 if (mod) {
                     nameEl.innerText = `${state.selectedRepo.appName} — ${mod.name}`;
-                    document.getElementById("btn-run-build").disabled = !document.getElementById("package-build-script").value;
+                    const btn = document.getElementById("btn-run-build");
+                    if (!document.getElementById("package-build-script").value) {
+                        btn.setAttribute("aria-disabled", "true");
+                        btn.setAttribute("title", "Enter a build script command to enable building.");
+                    } else {
+                        btn.removeAttribute("aria-disabled");
+                        btn.removeAttribute("title");
+                    }
                 }
             } else {
                 nameEl.innerText = `${state.selectedRepo.appName}`;
-                document.getElementById("btn-run-build").disabled = true;
+                const btn = document.getElementById("btn-run-build");
+                btn.setAttribute("aria-disabled", "true");
+                btn.setAttribute("title", "Enter a build script command to enable building.");
             }
         }
 
@@ -4384,6 +4393,11 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         function triggerBuild() {
+            const btn = document.getElementById("btn-run-build");
+            if (btn.getAttribute("aria-disabled") === "true") {
+                showToast("Please enter a build script first.", true);
+                return;
+            }
             const buildScript = document.getElementById("package-build-script").value.trim();
             if (!buildScript) {
                 showToast("Please enter a build script first.", true);
@@ -4392,10 +4406,9 @@ INDEX_HTML = """<!DOCTYPE html>
 
             const consoleOutput = document.getElementById("build-terminal-output");
             const badge = document.getElementById("build-status-badge");
-            const btn = document.getElementById("btn-run-build");
             const terminalPanel = document.querySelector(".terminal-panel");
             
-            btn.disabled = true;
+            btn.setAttribute("aria-disabled", "true");
             if (terminalPanel) terminalPanel.classList.add("active-build");
             badge.style.display = "inline-flex";
             badge.className = "badge badge-cyan";
@@ -4419,7 +4432,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     consoleOutput.innerHTML += colorizeLog(`❌ Failed to trigger build: ${data.error}`);
                     badge.className = "badge badge-error";
                     badge.innerHTML = "❌ Error";
-                    btn.disabled = false;
+                    btn.removeAttribute("aria-disabled");
                     if (terminalPanel) terminalPanel.classList.remove("active-build");
                 }
             })
@@ -4427,7 +4440,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 consoleOutput.innerHTML += colorizeLog(`❌ Connection error triggering build: ${err}`);
                 badge.className = "badge badge-error";
                 badge.innerHTML = "❌ Failed";
-                btn.disabled = false;
+                btn.removeAttribute("aria-disabled");
                 if (terminalPanel) terminalPanel.classList.remove("active-build");
             });
         }
@@ -4450,7 +4463,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                             if (data.status !== "running") {
                                 clearInterval(state.activeBuildInterval);
-                                btn.disabled = false;
+                                btn.removeAttribute("aria-disabled");
                                 if (terminalPanel) terminalPanel.classList.remove("active-build");
                                 
                                 if (data.status === "success") {
@@ -4793,7 +4806,7 @@ INDEX_HTML = """<!DOCTYPE html>
             }
 
             alertBox.style.display = "none";
-            btn.disabled = true;
+            btn.setAttribute("aria-disabled", "true");
             btn.innerHTML = `<span class="status-dot success spinning" style="width:12px; height:12px; border-width:2px; border-style:solid; border-color:transparent var(--success) var(--success); background:none; box-shadow:none;"></span> Waiting for login...`;
             text.innerText = "Browser opened. Please grant access to Chrome Web Store on the Google authorization screen.";
 
@@ -4814,13 +4827,13 @@ INDEX_HTML = """<!DOCTYPE html>
                     startPolling();
                 } else {
                     text.innerText = "Error starting OAuth: " + data.error;
-                    btn.disabled = false;
+                    btn.removeAttribute("aria-disabled");
                     btn.innerText = "🔒 Authorize with Google";
                 }
             })
             .catch(err => {
                 text.innerText = "Connection error starting OAuth: " + err;
-                btn.disabled = false;
+                btn.removeAttribute("aria-disabled");
                 btn.innerText = "🔒 Authorize with Google";
             });
         }
@@ -4847,7 +4860,7 @@ INDEX_HTML = """<!DOCTYPE html>
                         } else if (data.status === "error") {
                             clearInterval(pollInterval);
                             text.innerText = "OAuth Failed: " + data.error;
-                            btn.disabled = false;
+                            btn.removeAttribute("aria-disabled");
                             btn.innerText = "🔒 Authorize with Google";
                         }
                     })
@@ -4869,7 +4882,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 return;
             }
 
-            finalBtn.disabled = true;
+            finalBtn.setAttribute("aria-disabled", "true");
             alertBox.style.display = "block";
             alertBox.className = "alert badge-cyan";
             alertBox.innerText = "Encrypting and uploading Client ID, Secret, Extension ID, and Refresh Token to GitHub Secrets...";
@@ -4894,13 +4907,13 @@ INDEX_HTML = """<!DOCTYPE html>
                 } else {
                     alertBox.className = "alert badge-error";
                     alertBox.innerText = "Failed to upload secrets: " + data.error;
-                    finalBtn.disabled = false;
+                    finalBtn.removeAttribute("aria-disabled");
                 }
             })
             .catch(err => {
                 alertBox.className = "alert badge-error";
                 alertBox.innerText = "Connection error setting secrets: " + err;
-                finalBtn.disabled = false;
+                finalBtn.removeAttribute("aria-disabled");
             });
         }
     </script>
