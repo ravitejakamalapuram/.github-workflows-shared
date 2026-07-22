@@ -9,3 +9,6 @@
 ## 2026-06-07 - Replace blocking alerts with accessible toast notifications
 **Learning:** Thread-blocking alerts for simple UI feedback disrupt the user experience and are inaccessible. Using temporary inline text changes with `aria-live="polite"` provides a seamless and accessible state change for screen readers.
 **Action:** Always avoid `alert()` for simple interactive feedback, and opt for inline state changes with ARIA support.
+## $(date +%Y-%m-%d) - Dynamic aria-live injection for interactive feedback
+**Learning:** Adding `aria-live="polite"` dynamically to a button exactly when its text changes (e.g., from "Copy" to "Copied!") provides immediate accessible feedback to screen readers without requiring a thread-blocking alert() or complex toast notifications.
+**Action:** When implementing temporary inline text changes for interactive states in UI components, inject the `aria-live="polite"` attribute before mutating the text to ensure screen readers announce the state change seamlessly.
