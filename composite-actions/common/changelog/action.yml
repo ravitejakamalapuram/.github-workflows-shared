@@ -70,13 +70,17 @@ runs:
       env:
         INCLUDE_AUTHORS: ${{ inputs.include-authors }}
         GROUP_BY: ${{ inputs.group-by }}
+        RANGE: ${{ steps.range.outputs.range }}
       run: |
-        RANGE="${{ steps.range.outputs.range }}"
-        
         echo "::group::Generating Changelog"
         
         # ⚡ Bolt Optimization: Fetch commits once instead of 4 times for conventional-commits grouping
-        git log --oneline --pretty=format:"- %s (%h)${{ env.INCLUDE_AUTHORS == 'true' && ' by %an' || '' }}" $RANGE > all_commits.txt || true
+        AUTHOR_FORMAT=""
+        if [ "$INCLUDE_AUTHORS" == "true" ]; then
+          AUTHOR_FORMAT=" by %an"
+        fi
+
+        git log --oneline --pretty=format:"- %s (%h)$AUTHOR_FORMAT" "$RANGE" > all_commits.txt || true
 
         if [ "$GROUP_BY" == "conventional-commits" ]; then
           # Group by conventional commit types
