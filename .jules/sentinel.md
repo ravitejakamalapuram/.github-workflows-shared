@@ -13,3 +13,8 @@
 **Vulnerability:** Command injection vulnerability in `scripts/onboard-wizard.py`. Passing user-provided strings like `build_script` to `subprocess.Popen(..., shell=True)` allows attackers to execute arbitrary commands by appending shell metacharacters (e.g., `; rm -rf /`).
 **Learning:** Local Python servers accepting build commands must treat inputs as untrusted and properly tokenize them rather than evaluating them in a shell context.
 **Prevention:** Always use `shlex.split()` to tokenize command strings into an array of arguments, and pass `shell=False` to `subprocess.Popen` or `subprocess.run`.
+
+## 2026-07-28 - Fix Command Injection in Changelog Action
+**Vulnerability:** Command injection risk through indirect step output interpolation (`${{ steps.range.outputs.range }}`) and inline ternary Actions expressions inside a bash `run:` block.
+**Learning:** GitHub Actions expressions (`${{ }}`) inside a `run:` block are evaluated before the shell script runs, allowing unsanitized outputs to break out of string context and execute arbitrary commands.
+**Prevention:** Map outputs to the step's `env:` block and use native bash conditionals and variable expansion instead of inline string interpolation.
