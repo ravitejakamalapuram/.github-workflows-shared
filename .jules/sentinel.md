@@ -13,3 +13,7 @@
 **Vulnerability:** Command injection vulnerability in `scripts/onboard-wizard.py`. Passing user-provided strings like `build_script` to `subprocess.Popen(..., shell=True)` allows attackers to execute arbitrary commands by appending shell metacharacters (e.g., `; rm -rf /`).
 **Learning:** Local Python servers accepting build commands must treat inputs as untrusted and properly tokenize them rather than evaluating them in a shell context.
 **Prevention:** Always use `shlex.split()` to tokenize command strings into an array of arguments, and pass `shell=False` to `subprocess.Popen` or `subprocess.run`.
+## 2024-10-24 - Command Injection via Inline Ternary Expressions in GitHub Actions
+**Vulnerability:** Found a command injection risk where inline GitHub Actions ternary expressions (e.g., `${{ env.VAR == 'true' && 'val' || '' }}`) and indirect interpolations (`${{ steps.x.outputs.y }}`) were directly evaluated inside bash run: scripts.
+**Learning:** The GitHub Actions expression engine evaluates these statements before bash executes. While seemingly harmless, they can break out of the string context and execute arbitrary shell commands if untrusted input controls the logic or outputs.
+**Prevention:** Replace inline string expressions in run: scripts with native bash conditional blocks (if/else), and map all step outputs explicitly to the env: block rather than using indirect interpolation.
