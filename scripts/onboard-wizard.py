@@ -2772,7 +2772,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     
                     <div class="form-group">
                         <label for="package-build-script">Build Script Command</label>
-                        <input type="text" id="package-build-script" placeholder="e.g. npm run build">
+                        <input type="text" id="package-build-script" placeholder="e.g. npm run build" oninput="setupBuildExecutorPanel()">
                     </div>
                     <div class="form-group" style="margin-top: 12px;">
                         <label for="package-artifact-path">Artifact Path (Target ZIP/APK/AAB)</label>

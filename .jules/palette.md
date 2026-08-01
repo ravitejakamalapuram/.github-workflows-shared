@@ -9,3 +9,6 @@
 ## 2026-06-07 - Replace blocking alerts with accessible toast notifications
 **Learning:** Thread-blocking alerts for simple UI feedback disrupt the user experience and are inaccessible. Using temporary inline text changes with `aria-live="polite"` provides a seamless and accessible state change for screen readers.
 **Action:** Always avoid `alert()` for simple interactive feedback, and opt for inline state changes with ARIA support.
+## 2024-08-01 - Immediate validation on UI forms
+**Learning:** Added `oninput` validation to text inputs that control disabled states of submit buttons to prevent users from having to blur the field to see the state change. This significantly reduces cognitive load and confusion when filling out form configurations by providing an immediate, real-time feedback loop.
+**Action:** When making form fields that determine button enabled/disabled states, prioritize immediate visual feedback by firing the validation logic `oninput` rather than relying strictly on blur or onchange events, unless doing so degrades performance noticeably.
