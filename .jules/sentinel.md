@@ -13,8 +13,13 @@
 **Vulnerability:** Command injection vulnerability in `scripts/onboard-wizard.py`. Passing user-provided strings like `build_script` to `subprocess.Popen(..., shell=True)` allows attackers to execute arbitrary commands by appending shell metacharacters (e.g., `; rm -rf /`).
 **Learning:** Local Python servers accepting build commands must treat inputs as untrusted and properly tokenize them rather than evaluating them in a shell context.
 **Prevention:** Always use `shlex.split()` to tokenize command strings into an array of arguments, and pass `shell=False` to `subprocess.Popen` or `subprocess.run`.
-
 ## $(date +%Y-%m-%d) - Command Injection in Workflow Env Variables
 **Vulnerability:** GitHub actions inline bash script used direct string interpolation (`${{ inputs.package-name }}`) inside `jq --arg store_id "${{ inputs.package-name }}"`.
 **Learning:** Even when wrapping interpolated values in double quotes within an inline script, command injection can still occur if the user provides a maliciously crafted string with shell metacharacters (e.g. `"; some_command; echo "`). The correct approach is to map the GitHub input to an `env:` variable in the job/step and then reference it using bash variable syntax (e.g., `$PACKAGE_NAME`), which properly handles escaping and prevents injection. The fix had previously mapped the variable in `env:` but still incorrectly interpolated the value in `run:`.
 **Prevention:** Always map `${{ inputs.* }}` to `env:` blocks and reference the `env:` variable directly in the shell script. Never interpolate `${{ inputs.* }}` directly into `run:` blocks.
+
+## 2026-08-04 - Command Injection in scripts/merge-pr-after-wait.py
+**Vulnerability:** Command injection vulnerability in `scripts/merge-pr-after-wait.py`. Passing arguments to `subprocess.run(..., shell=True)` allows attackers to execute arbitrary commands by appending shell metacharacters.
+**Learning:** Local Python scripts must treat inputs as untrusted and properly tokenize them rather than evaluating them in a shell context.
+**Prevention:** Always use `shlex.split()` to tokenize command strings into an array of arguments, and pass `shell=False` to `subprocess.Popen` or `subprocess.run`.
+
