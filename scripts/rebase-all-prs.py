@@ -4,6 +4,7 @@ Rebase all PRs with conflicts to latest main
 """
 import subprocess
 import sys
+import shlex
 
 GH_PATH = "/opt/homebrew/bin/gh"
 REPO_PATH = "/Users/rkamalapuram/git-personal/.github-workflows-shared"
@@ -23,12 +24,12 @@ PRS_TO_REBASE = {
 
 def run_git(cmd):
     """Run git command"""
-    full_cmd = f"cd {REPO_PATH} && {cmd}"
     result = subprocess.run(
-        full_cmd,
-        shell=True,
+        shlex.split(cmd),
+        shell=False,
         capture_output=True,
-        text=True
+        text=True,
+        cwd=REPO_PATH
     )
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
