@@ -9,3 +9,6 @@
 ## 2026-06-07 - Replace blocking alerts with accessible toast notifications
 **Learning:** Thread-blocking alerts for simple UI feedback disrupt the user experience and are inaccessible. Using temporary inline text changes with `aria-live="polite"` provides a seamless and accessible state change for screen readers.
 **Action:** Always avoid `alert()` for simple interactive feedback, and opt for inline state changes with ARIA support.
+## 2025-02-14 - Instant Form Validation & Accessible Disabled States
+**Learning:** Native disabled properties prevent pointer events, breaking tooltip hovers and screen reader focus. Furthermore, failing to bind to `oninput` delays visual feedback for users.
+**Action:** Always migrate to `aria-disabled="true"` with custom event guards (and contextual state recovery for async actions) while ensuring form elements immediately reflect validation via `oninput`.
