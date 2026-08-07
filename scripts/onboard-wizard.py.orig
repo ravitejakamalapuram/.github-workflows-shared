@@ -110,7 +110,7 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
             repos = self.get_local_repos()
             gh_status = self.check_gh_status()
             cached_client_id, cached_client_secret = self.load_cached_credentials()
-            
+
             self.send_json_response({
                 "repos": repos,
                 "gh_status": gh_status,
@@ -166,7 +166,7 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
             if not repo_path or not os.path.exists(repo_path):
                 self.send_json_response({"success": False, "error": "Invalid repository path."}, status=400)
                 return
-            
+
             assets = []
             for root, dirs, files in os.walk(repo_path):
                 dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ["node_modules", "build", "dist", "out", "gradle"]]
@@ -205,7 +205,7 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b"File not found")
                 return
-            
+
             # Simple security check to make sure it's inside git-personal folder
             base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
             abs_file_path = os.path.abspath(file_path)
@@ -214,9 +214,9 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b"Forbidden access")
                 return
-                
+
             self.send_response(200)
-            
+
             # Detect content type
             content_type = 'application/octet-stream'
             fn_lower = abs_file_path.lower()
@@ -228,7 +228,7 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 content_type = 'image/gif'
             elif fn_lower.endswith('.webp'):
                 content_type = 'image/webp'
-                
+
             self.send_header('Content-Type', content_type)
             if path == "/api/download" and not params.get('inline', ['false'])[0] == 'true':
                 self.send_header('Content-Disposition', f'attachment; filename="{os.path.basename(abs_file_path)}"')
@@ -249,7 +249,7 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
 
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length).decode('utf-8')
-        
+
         try:
             req_data = json.loads(post_data) if post_data else {}
         except Exception:
@@ -261,7 +261,7 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
             if not repo_path or not os.path.exists(repo_path):
                 self.send_json_response({"success": False, "error": "Invalid repository path."}, status=400)
                 return
-            
+
             try:
                 md_file = os.path.join(repo_path, "PRIVACY.md")
                 if not os.path.exists(md_file):
@@ -288,17 +288,17 @@ If you have any questions or feedback regarding this policy, please open a GitHu
 """
                     with open(md_file, "w", encoding="utf-8") as f:
                         f.write(default_md)
-                
+
                 with open(md_file, "r", encoding="utf-8") as f:
                     md_text = f.read()
-                
+
                 app_name = os.path.basename(repo_path)
                 html_content = self.compile_markdown_to_html(md_text, title=f"Privacy Policy - {app_name}")
-                
+
                 html_file = os.path.join(repo_path, "privacy.html")
                 with open(html_file, "w", encoding="utf-8") as f:
                     f.write(html_content)
-                
+
                 self.send_json_response({"success": True, "message": "privacy.html generated successfully."})
             except Exception as e:
                 self.send_json_response({"success": False, "error": str(e)}, status=500)
@@ -330,7 +330,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                 "access_type=offline&"
                 "prompt=consent"
             )
-            
+
             webbrowser.open(auth_url)
             self.send_json_response({"success": True, "auth_url": auth_url})
             return
@@ -349,7 +349,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     text=True,
                     check=True
                 )
-                
+
                 # Relocate package ZIP if created in parent relative to repo_path
                 zip_source = os.path.join(repo_path, "..", "initial-package.zip")
                 zip_dest = os.path.join(repo_path, "initial-package.zip")
@@ -387,7 +387,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                 subprocess.run(["gh", "secret", "set", "CHROME_CLIENT_SECRET", "--body", client_secret], cwd=repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
                 subprocess.run(["gh", "secret", "set", "CHROME_EXTENSION_ID", "--body", extension_id], cwd=repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
                 subprocess.run(["gh", "secret", "set", "CHROME_REFRESH_TOKEN", "--body", refresh_token], cwd=repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                
+
                 self.send_json_response({"success": True})
             except subprocess.CalledProcessError as e:
                 self.send_json_response({
@@ -401,17 +401,17 @@ If you have any questions or feedback regarding this policy, please open a GitHu
             repo_path = req_data.get("path")
             app_type = req_data.get("type")
             ext_dir = req_data.get("ext_dir", ".")
-            
+
             if not repo_path or not os.path.exists(repo_path):
                 self.send_json_response({"success": False, "error": "Invalid repository path."}, status=400)
                 return
-                
+
             try:
                 template = self.generate_metadata_template_internal(repo_path, app_type, ext_dir)
                 meta_file = os.path.join(repo_path, "app-metadata.json")
                 with open(meta_file, "w") as f:
                     json.dump(template, f, indent=2)
-                    
+
                 self.send_json_response({"success": True, "metadata": template})
             except Exception as e:
                 self.send_json_response({"success": False, "error": str(e)}, status=500)
@@ -421,11 +421,11 @@ If you have any questions or feedback regarding this policy, please open a GitHu
         if path == "/api/save-metadata":
             repo_path = req_data.get("path")
             metadata = req_data.get("metadata")
-            
+
             if not repo_path or not os.path.exists(repo_path) or not metadata:
                 self.send_json_response({"success": False, "error": "Invalid parameters."}, status=400)
                 return
-                
+
             try:
                 meta_file = os.path.join(repo_path, "app-metadata.json")
                 with open(meta_file, "w") as f:
@@ -439,11 +439,11 @@ If you have any questions or feedback regarding this policy, please open a GitHu
         if path == "/api/build":
             repo_path = req_data.get("path")
             build_script = req_data.get("build_script")
-            
+
             if not repo_path or not os.path.exists(repo_path) or not build_script:
                 self.send_json_response({"success": False, "error": "Invalid parameters."}, status=400)
                 return
-                
+
             build_id = str(uuid.uuid4())[:8]
             self.run_build_async_internal(repo_path, build_script, build_id)
             self.send_json_response({"success": True, "build_id": build_id})
@@ -454,7 +454,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
         self.end_headers()
 
     # --- Backend Helper Functions ---
-    
+
     def exchange_code(self, client_id, client_secret, code):
         url = "https://oauth2.googleapis.com/token"
         data = urllib.parse.urlencode({
@@ -464,7 +464,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
             'redirect_uri': 'http://localhost:3005/oauth-callback',
             'grant_type': 'authorization_code'
         }).encode('utf-8')
-        
+
         req = urllib.request.Request(url, data=data)
         try:
             with urllib.request.urlopen(req) as response:
@@ -478,7 +478,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
             return False, "URL is empty"
         try:
             req = urllib.request.Request(
-                url, 
+                url,
                 headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/100.0.0.0 Safari/537.36'}
             )
             # Try HEAD first
@@ -501,7 +501,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
         lines = md_text.splitlines()
         html_lines = []
         in_list = False
-        
+
         for line in lines:
             stripped = line.strip()
             if not stripped:
@@ -509,7 +509,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     html_lines.append("</ul>")
                     in_list = False
                 continue
-                
+
             # Headers
             if stripped.startswith("# "):
                 if in_list:
@@ -545,12 +545,12 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                 val = stripped
                 val = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', val)
                 html_lines.append(f"<p>{val}</p>")
-                
+
         if in_list:
             html_lines.append("</ul>")
-            
+
         content_html = "\n".join(html_lines)
-        
+
         template = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -621,7 +621,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
     def detect_remote_code_and_permissions(self, repo_path, chrome_folder):
         extension_dir = os.path.normpath(os.path.join(repo_path, chrome_folder))
         findings = []
-        
+
         # 1. Scan manifest.json for remote scripts/CSP
         manifest_path = os.path.join(extension_dir, "manifest.json")
         manifest_data = {}
@@ -650,25 +650,25 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     try:
                         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                             content = f.read()
-                            
+
                             # eval check
                             if "eval(" in content:
                                 for idx, line in enumerate(content.splitlines(), 1):
                                     if "eval(" in line and not line.strip().startswith("//"):
                                         findings.append(f"{os.path.relpath(file_path, extension_dir)}:L{idx}: Usage of eval()")
-                                        
+
                             # new Function check
                             if "new Function(" in content:
                                 for idx, line in enumerate(content.splitlines(), 1):
                                     if "new Function(" in line and not line.strip().startswith("//"):
                                         findings.append(f"{os.path.relpath(file_path, extension_dir)}:L{idx}: Usage of new Function()")
-                                        
+
                             # HTTP/HTTPS scripts or source tags
                             remote_matches = re.findall(r'src=["\'](https?://[^"\']+)["\']', content)
                             for src in remote_matches:
                                 if "chrome-extension://" not in src and "localhost" not in src:
                                     findings.append(f"{os.path.relpath(file_path, extension_dir)}: Reference to remote script '{src}'")
-                                    
+
                             # Dynamic src matches
                             dyn_src = re.findall(r'\.src\s*=\s*["\'](https?://[^"\']+)["\']', content)
                             for src in dyn_src:
@@ -676,7 +676,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                                     findings.append(f"{os.path.relpath(file_path, extension_dir)}: Dynamic script src set to remote URL '{src}'")
                     except Exception:
                         pass
-                        
+
         remote_used = len(findings) > 0
         if remote_used:
             justification = "The extension references remote code or dynamic script loading. Occurrences: " + "; ".join(findings[:3])
@@ -684,7 +684,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                 justification += f" (and {len(findings) - 3} more)"
         else:
             justification = "The extension does not use remote code. All files, scripts, and libraries are packaged locally within the extension ZIP file."
-            
+
         return remote_used, justification
 
     def get_default_permission_justification(self, perm):
@@ -702,35 +702,35 @@ If you have any questions or feedback regarding this policy, please open a GitHu
         }
         if "://" in perm or perm == "<all_urls>":
             return f"This permission is required to communicate with remote API endpoint '{perm}' to fetch dynamic shlokas, daily quotes, and perform language translations on the fly."
-            
+
         return mapping.get(perm, f"The '{perm}' permission is required for core extension functions, specifically to enable the user-facing features related to this capability.")
 
     def get_local_repos(self):
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         repos = []
-        
+
         if not os.path.exists(base_dir):
             return repos
-            
+
         for name in os.listdir(base_dir):
             if name in EXCLUDED_FOLDERS:
                 continue
             path = os.path.join(base_dir, name)
             if not os.path.isdir(path) or name.startswith('.'):
                 continue
-                
+
             is_git = os.path.exists(os.path.join(path, ".git"))
             if not is_git:
                 continue
-                
+
             # Detect existing workflows
             wf_exists = os.path.exists(os.path.join(path, ".github", "workflows", "ci-cd.yml"))
-            
+
             # Detect metadata
             meta_path = os.path.join(path, "app-metadata.json")
             if not os.path.exists(meta_path):
                 meta_path = os.path.join(path, ".app-metadata.json")
-                
+
             metadata = None
             metadata_exists = False
             if os.path.exists(meta_path):
@@ -740,7 +740,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     metadata_exists = True
                 except Exception:
                     pass
-                    
+
             # Supplement CWS Listing fields dynamically if metadata is present
             if metadata and metadata.get("modules"):
                 modified = False
@@ -749,9 +749,9 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                         if "cwsListing" not in mod:
                             mod["cwsListing"] = {}
                             modified = True
-                        
+
                         cws = mod["cwsListing"]
-                        
+
                         # 1. Infer remote code usage
                         if "remoteCodeUsed" not in cws:
                             ext_folder = mod.get("path", ".")
@@ -764,12 +764,12 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                             _, remote_just = self.detect_remote_code_and_permissions(path, ext_folder)
                             cws["remoteCodeJustification"] = remote_just
                             modified = True
-                            
+
                         # 2. Certify policy defaults to True
                         if "dataUsageCertified" not in cws:
                             cws["dataUsageCertified"] = True
                             modified = True
-                            
+
                         # 3. Default single purpose from manifest description if missing
                         manifest_folder = mod.get("path", ".")
                         manifest_file = os.path.normpath(os.path.join(path, manifest_folder, "manifest.json"))
@@ -783,29 +783,29 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                                     m_perms = m_data.get("permissions", []) + m_data.get("host_permissions", []) + m_data.get("optional_permissions", [])
                             except Exception:
                                 pass
-                                
+
                         if not cws.get("singlePurpose") and m_desc:
                             cws["singlePurpose"] = m_desc[:70]
                             modified = True
-                            
+
                         # 4. Smart default permission justifications
                         if "permissionJustifications" not in cws:
                             cws["permissionJustifications"] = {}
                             modified = True
-                            
+
                         p_justs = cws["permissionJustifications"]
                         for perm in m_perms:
                             if not p_justs.get(perm) or p_justs.get(perm) == "":
                                 p_justs[perm] = self.get_default_permission_justification(perm)
                                 modified = True
-                                
+
                 if modified:
                     try:
                         with open(meta_path, "w") as f:
                             json.dump(metadata, f, indent=2)
                     except Exception:
                         pass
-            
+
             # Fallback type inference
             chrome_paths = []
             if os.path.exists(os.path.join(path, "manifest.json")):
@@ -818,7 +818,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                             chrome_paths.append(item)
             except Exception:
                 pass
-                
+
             flutter_paths = []
             if os.path.exists(os.path.join(path, "pubspec.yaml")):
                 flutter_paths.append(".")
@@ -830,13 +830,13 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                             flutter_paths.append(item)
             except Exception:
                 pass
-                
+
             android_paths = []
             def is_android_dir(d):
                 has_gradle = os.path.exists(os.path.join(d, "build.gradle")) or os.path.exists(os.path.join(d, "build.gradle.kts"))
                 has_manifest = os.path.exists(os.path.join(d, "src", "main", "AndroidManifest.xml"))
                 return has_gradle and has_manifest
-                
+
             if is_android_dir(path):
                 android_paths.append(".")
             try:
@@ -847,9 +847,9 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                             android_paths.append(item)
             except Exception:
                 pass
-                
+
             total_modules = len(chrome_paths) + len(flutter_paths) + len(android_paths)
-            
+
             inferred_type = "unknown"
             ext_dir = "."
             if total_modules > 1:
@@ -870,10 +870,10 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                 elif android_paths:
                     inferred_type = "android-app"
                     ext_dir = android_paths[0]
-                
+
             app_type = metadata.get("appType", inferred_type) if metadata else inferred_type
             app_name = metadata.get("appName", name) if metadata else name
-            
+
             # Parse manifest_info if chrome-extension or multi-module with chrome path
             manifest_info = None
             chrome_folder = chrome_paths[0] if chrome_paths else (ext_dir if inferred_type == "chrome-extension" else None)
@@ -883,7 +883,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     try:
                         with open(manifest_file, "r") as f:
                             m_data = json.load(f)
-                            
+
                             # Verify if declared icons exist on disk
                             icons_decl = m_data.get("icons", {})
                             verified_icons = {}
@@ -894,7 +894,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                                     "exists": os.path.exists(icon_abs_path),
                                     "abs_path": icon_abs_path
                                 }
-                            
+
                             # Scan for promotional images / screenshots in the root or chrome path
                             screenshots = []
                             try:
@@ -909,7 +909,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                                             })
                             except Exception:
                                 pass
-                                
+
                             if chrome_folder and chrome_folder != ".":
                                 try:
                                     chrome_abs_path = os.path.join(path, chrome_folder)
@@ -926,7 +926,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                                                     })
                                 except Exception:
                                     pass
-                                
+
                             manifest_info = {
                                 "name": m_data.get("name", ""),
                                 "version": m_data.get("version", ""),
@@ -1010,7 +1010,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
             "repo_path": repo_path,
             "timestamp": datetime.now().isoformat()
         }
-        
+
         def thread_target():
             try:
                 with open(log_file_path, "w") as log_f:
@@ -1018,7 +1018,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     log_f.write(f"Directory: {repo_path}\n")
                     log_f.write(f"Command: {build_script}\n\n")
                     log_f.flush()
-                    
+
                     proc = subprocess.Popen(
                         shlex.split(build_script),
                         shell=False,
@@ -1029,7 +1029,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     )
                     ACTIVE_BUILDS[build_id]["process"] = proc
                     proc.wait()
-                    
+
                     if proc.returncode == 0:
                         ACTIVE_BUILDS[build_id]["status"] = "success"
                     else:
@@ -1063,7 +1063,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     continue
                 if m not in found_files and os.path.isfile(m):
                     found_files.append(m)
-                    
+
         for f in found_files:
             rel_path = os.path.relpath(f, repo_path)
             size = os.path.getsize(f)
@@ -1081,7 +1081,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
         appName = os.path.basename(repo_path)
         repo_basename = os.path.basename(repo_path)
         description = "A premium application."
-        
+
         # Scan modules dynamically
         chrome_paths = []
         if os.path.exists(os.path.join(repo_path, "manifest.json")):
@@ -1094,7 +1094,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                         chrome_paths.append(item)
         except Exception:
             pass
-            
+
         flutter_paths = []
         if os.path.exists(os.path.join(repo_path, "pubspec.yaml")):
             flutter_paths.append(".")
@@ -1106,13 +1106,13 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                         flutter_paths.append(item)
         except Exception:
             pass
-            
+
         android_paths = []
         def is_android_dir(d):
             has_gradle = os.path.exists(os.path.join(d, "build.gradle")) or os.path.exists(os.path.join(d, "build.gradle.kts"))
             has_manifest = os.path.exists(os.path.join(d, "src", "main", "AndroidManifest.xml"))
             return has_gradle and has_manifest
-            
+
         if is_android_dir(repo_path):
             android_paths.append(".")
         try:
@@ -1123,10 +1123,10 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                         android_paths.append(item)
         except Exception:
             pass
-            
+
         total_modules = len(chrome_paths) + len(flutter_paths) + len(android_paths)
         modules = []
-        
+
         # 1. Chrome Extension Modules
         for cp in chrome_paths:
             manifest_path = os.path.join(repo_path, cp, "manifest.json")
@@ -1142,7 +1142,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     pass
             # Run code scanner on template creation
             remote_used, remote_just = self.detect_remote_code_and_permissions(repo_path, cp)
-            
+
             p_justs = {}
             if os.path.exists(manifest_path):
                 try:
@@ -1176,7 +1176,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     "permissionJustifications": p_justs
                 }
             })
-            
+
         # 2. Flutter Modules
         for fp in flutter_paths:
             pubspec_path = os.path.join(repo_path, fp, "pubspec.yaml")
@@ -1210,7 +1210,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{repo_basename}/privacy.html"
                 }
             })
-            
+
         # 3. Android Modules
         for ap in android_paths:
             mod_appName = appName
@@ -1232,7 +1232,7 @@ If you have any questions or feedback regarding this policy, please open a GitHu
                     "privacyPolicyUrl": f"https://ravitejakamalapuram.github.io/{repo_basename}/privacy.html"
                 }
             })
-            
+
         # Fallback if no modules detected
         if not modules:
             if expected_type == "chrome-extension":
@@ -1312,12 +1312,12 @@ If you have any questions or feedback regarding this policy, please open a GitHu
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.end_headers()
-        
+
         status_title = "Authorization Successful" if is_success else "Authorization Failed"
         status_color = "#10b981" if is_success else "#ef4444"
         badge_bg = "#e6fffa" if is_success else "#fde8e8"
         badge_color = "#047857" if is_success else "#9b1c1c"
-        
+
         feedback_html = f"""
         <html>
         <head>
@@ -1445,7 +1445,7 @@ INDEX_HTML = """<!DOCTYPE html>
             display: flex;
             flex-direction: column;
             position: relative;
-            background-image: 
+            background-image:
                 radial-gradient(circle at 50% 0%, rgba(98, 0, 234, 0.04) 0%, transparent 60%),
                 linear-gradient(rgba(255, 255, 255, 0.003) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255, 255, 255, 0.003) 1px, transparent 1px);
@@ -2438,7 +2438,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div class="logo">Saturn Console</div>
                 <div class="logo-version">v2.0</div>
             </div>
-            
+
             <!-- Active Workspace Picker in Sidebar -->
             <div class="sidebar-picker-section" id="sidebar-picker-section" style="display: none;">
                 <label style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; display: block;">Active Workspace</label>
@@ -2463,7 +2463,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     <span class="nav-icon">🚀</span> 3. Secrets & CI/CD
                 </button>
             </nav>
-            
+
             <div class="sidebar-footer">
                 <div class="gh-badge" id="gh-status-badge">
                     <span class="status-dot warning"></span> Loading GitHub CLI...
@@ -2590,14 +2590,14 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div class="panel">
                     <h2 id="workspace-sidebar-title">Select App</h2>
                     <p class="panel-subtitle" id="workspace-sidebar-desc">Configure registry metadata details</p>
-                    
+
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <label>Application Modules</label>
                         <div class="list-items" id="workspace-module-list">
                             <!-- Modules listed dynamically -->
                         </div>
                     </div>
-                    
+
                     <div id="init-metadata-banner" style="display: none; flex-direction: column; gap: 12px;">
                         <span class="badge badge-warning" style="width:100%;">No Metadata Found</span>
                         <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">This app repository is missing the compliance <code>app-metadata.json</code> file. Click below to initialize it.</p>
@@ -2609,7 +2609,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div class="panel" id="workspace-metadata-panel">
                     <h2>Application Configuration Standard</h2>
                     <p class="panel-subtitle">Edit metadata fields to serve as the single source of truth for CI/CD pipelines and manual onboarding</p>
-                    
+
                     <div id="save-metadata-success" class="badge badge-success" aria-live="polite" style="display: none; padding: 10px; width: 100%; justify-content: center; font-size: 12px; margin-bottom: 10px;">
                         ✓ Metadata saved successfully to app-metadata.json!
                     </div>
@@ -2638,7 +2638,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     <!-- Dynamic Module Fields Section -->
                     <div class="tab-section" id="meta-module-section">
                         <h3 class="sub-header" id="meta-module-header">Module Configurations</h3>
-                        
+
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="meta-mod-name">Module Name</label>
@@ -2769,16 +2769,16 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div class="panel">
                     <h2>Execute App Build</h2>
                     <p class="panel-subtitle">Trigger the app-defined build script locally.</p>
-                    
+
                     <div class="form-group">
                         <label for="package-build-script">Build Script Command</label>
-                        <input type="text" id="package-build-script" placeholder="e.g. npm run build" oninput="setupBuildExecutorPanel()">
+                        <input type="text" id="package-build-script" placeholder="e.g. npm run build">
                     </div>
                     <div class="form-group" style="margin-top: 12px;">
                         <label for="package-artifact-path">Artifact Path (Target ZIP/APK/AAB)</label>
                         <input type="text" id="package-artifact-path" placeholder="e.g. initial-package.zip">
                     </div>
-                    
+
                     <div style="background: rgba(30, 41, 59, 0.2); border: 1px solid var(--card-border); border-radius: 10px; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap:12px; flex-wrap: wrap; margin-top: 8px;">
                         <div>
                             <div id="build-module-name-label" style="font-weight: 700; font-size: 14px;">Module name</div>
@@ -2800,7 +2800,7 @@ INDEX_HTML = """<!DOCTYPE html>
                             <!-- Populated dynamically via JS -->
                         </div>
                     </div>
-                    
+
                     <div class="panel">
                         <h2>Local Assets Directory</h2>
                         <p class="panel-subtitle">Compiled ZIP, APK, or AAB files generated locally.</p>
@@ -2832,7 +2832,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 <div class="panel">
                     <h2>Store Listing Configuration</h2>
                     <p class="panel-subtitle">Define the store listing details, privacy policies, reviewer instructions, and visibility settings.</p>
-                    
+
                     <!-- Section: General Info -->
                     <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 16px; margin-bottom: 8px;">
                         <h3 style="font-size: 14px; color: var(--accent-cyan); font-family: 'Outfit'; margin-bottom: 12px;">1. General Information</h3>
@@ -2888,12 +2888,12 @@ INDEX_HTML = """<!DOCTYPE html>
                     <!-- Section: Privacy & Policies -->
                     <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 16px; margin-bottom: 8px;">
                         <h3 style="font-size: 14px; color: var(--accent-cyan); font-family: 'Outfit'; margin-bottom: 12px;">2. Privacy & Policies</h3>
-                        
+
                         <div class="form-group" id="privacy-purpose-group">
                             <label for="privacy-single-purpose">Single Purpose Description <span style="color: var(--error);" aria-hidden="true">*</span> (max 1000 chars)</label>
                             <textarea id="privacy-single-purpose" style="min-height: 80px;" placeholder="Explain the single, narrow, and easy-to-understand purpose of your extension..." required aria-required="true"></textarea>
                         </div>
-                        
+
                         <div class="form-group" style="margin-top: 12px;">
                             <label for="privacy-policy-url">Privacy Policy URL <span style="color: var(--error);" aria-hidden="true">*</span></label>
                             <input type="text" id="privacy-policy-url" placeholder="https://yourwebsite.com/privacy" required aria-required="true">
@@ -2933,7 +2933,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     <!-- Section: Distribution & Access -->
                     <div>
                         <h3 style="font-size: 14px; color: var(--accent-cyan); font-family: 'Outfit'; margin-bottom: 12px;">3. Distribution & Reviewer Access</h3>
-                        
+
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="dist-visibility">Visibility / Publish State <span style="color: var(--error);" aria-hidden="true">*</span></label>
@@ -3009,7 +3009,7 @@ INDEX_HTML = """<!DOCTYPE html>
             <div class="panel">
                 <h2>Store Onboarding Copy-Paste Listing Guide</h2>
                 <p class="panel-subtitle">Step-by-step instructions and listing parameters copyable to speed up initial manual store submission</p>
-                
+
                 <div class="workspace-layout" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
                     <div class="instructions-panel">
                         <strong>Developer Console Onboarding Guide:</strong>
@@ -3101,7 +3101,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 .then(data => {
                     state.repos = data.repos;
                     state.ghStatus = data.gh_status;
-                    
+
                     // Render Github Badge
                     const badge = document.getElementById("gh-status-badge");
                     if (state.ghStatus.authenticated) {
@@ -3120,12 +3120,12 @@ INDEX_HTML = """<!DOCTYPE html>
 
                     // Initial render of dashboard to show "checking runs"
                     renderReposDashboard();
-                    
+
                     // Fetch runs for all repos proactively
                     state.repos.forEach(repo => {
                         fetchRepoRuns(repo);
                     });
-                    
+
                     // If a repo was selected previously, refresh its state
                     if (state.selectedRepo) {
                         const updated = state.repos.find(r => r.path === state.selectedRepo.path);
@@ -3149,25 +3149,25 @@ INDEX_HTML = """<!DOCTYPE html>
             const mod = repo.metadata.modules[state.selectedModuleIdx];
             const panel = document.getElementById("cws-preflight-panel");
             const box = document.getElementById("cws-preflight-box");
-            
+
             if (mod.type !== "chrome-extension") {
                 panel.style.display = "none";
                 return;
             }
-            
+
             panel.style.display = "flex";
             box.innerHTML = `<p style="font-size:12px; color:var(--text-secondary);">Analyzing pre-flight parameters...</p>`;
-            
+
             const info = repo.manifest_info || {};
             const cws = mod.cwsListing || {};
-            
+
             // 1. Description Length check
             const desc = info.description || "";
             const descOk = desc.length > 0 && desc.length <= 132;
-            const descMsg = descOk 
+            const descMsg = descOk
                 ? `🟢 Description is CWS-compliant (${desc.length}/132 chars)`
                 : `🔴 Description length must be 1-132 chars (currently ${desc.length} chars)`;
-                
+
             // 2. Icon 128x128 check
             const icons = info.icons || {};
             const icon128 = icons["128"] || {};
@@ -3175,18 +3175,18 @@ INDEX_HTML = """<!DOCTYPE html>
             const iconMsg = iconOk
                 ? `🟢 Store Icon (128x128) exists locally`
                 : `🔴 Missing Store Icon (128x128) in manifest or on disk`;
-                
+
             // 3. Screenshots check
             const screens = info.screenshots || [];
             const screenOk = screens.length >= 1;
             const screenMsg = screenOk
                 ? `🟢 Found ${screens.length} screenshots (at least 1 required)`
                 : `🔴 CWS requires at least 1 screenshot (1280x800 or 640x400)`;
-                
+
             // 4. Privacy policy link check
             const privacyUrl = cws.privacyPolicyUrl || "";
             const privacySet = privacyUrl.trim().length > 0;
-            
+
             box.innerHTML = `
                 <div class="preflight-item" style="display:flex; flex-direction:column; gap:6px; padding:10px; background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
                     <div style="font-size:12px; color: ${descOk ? 'var(--success)' : 'var(--error)'}; font-weight: 500;">
@@ -3209,14 +3209,14 @@ INDEX_HTML = """<!DOCTYPE html>
                     </div>
                 </div>
             `;
-            
+
             if (privacySet) {
                 fetch(`/api/check-privacy-url?url=${encodeURIComponent(privacyUrl)}`)
                     .then(res => res.json())
                     .then(data => {
                         const item = document.getElementById("preflight-privacy-item");
                         if (!item) return;
-                        
+
                         if (data.success && data.reachable) {
                             item.innerHTML = `
                                 <div style="font-size:12px; color:var(--success); font-weight: 500;">
@@ -3312,20 +3312,20 @@ INDEX_HTML = """<!DOCTYPE html>
                     content.style.display = 'none';
                 }
             });
-            
+
             const activeContent = document.getElementById(`tab-content-${tabName}`);
             if (activeContent) {
                 activeContent.classList.add('active');
                 activeContent.style.display = 'flex';
             }
-            
+
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            
+
             const activeBtn = document.getElementById(`tab-nav-${tabName}`);
             if (activeBtn) activeBtn.classList.add('active');
-            
+
             state.currentTab = tabName;
 
             // Reset main content scroll position to top on tab transitions
@@ -3363,7 +3363,7 @@ INDEX_HTML = """<!DOCTYPE html>
             const diffMins = Math.floor(diffMs / 60000);
             const diffHours = Math.floor(diffMins / 60);
             const diffDays = Math.floor(diffHours / 24);
-            
+
             if (diffMins < 1) return "Just now";
             if (diffMins < 60) return `${diffMins}m ago`;
             if (diffHours < 24) return `${diffHours}h ago`;
@@ -3444,7 +3444,7 @@ INDEX_HTML = """<!DOCTYPE html>
             // Filter
             let filteredRepos = state.repos.filter(repo => {
                 // Search query match
-                const matchSearch = repo.appName.toLowerCase().includes(state.searchQuery.toLowerCase()) || 
+                const matchSearch = repo.appName.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
                                     repo.name.toLowerCase().includes(state.searchQuery.toLowerCase());
                 if (!matchSearch) return false;
 
@@ -3490,7 +3490,7 @@ INDEX_HTML = """<!DOCTYPE html>
                         let dotClass = "dot-draft";
                         if (m.status === "published") dotClass = "dot-published";
                         else if (m.status === "beta") dotClass = "dot-beta";
-                        
+
                         modulesHtml += `
                             <div class="module-chip" style="margin-right: 6px; margin-bottom: 6px; display: inline-flex;">
                                 <span class="dot ${dotClass}"></span>
@@ -3597,18 +3597,18 @@ INDEX_HTML = """<!DOCTYPE html>
         function selectRepo(repo) {
             state.selectedRepo = repo;
             state.selectedModuleIdx = 0;
-            
+
             // Hide the registry dashboard view
             const registryView = document.getElementById("registry-dashboard-view");
             if (registryView) registryView.style.display = "none";
-            
+
             // Show Active App Bar
             const appBar = document.getElementById("active-app-bar");
             appBar.style.display = "flex";
-            
+
             document.getElementById("active-app-title").innerText = repo.appName;
             document.getElementById("active-app-path").innerText = `Folder: git-personal/${repo.name}/`;
-            
+
             // App Type badge
             let typeBadge = repo.appType;
             if (repo.appType === "chrome-extension") typeBadge = "Chrome Extension";
@@ -3616,7 +3616,7 @@ INDEX_HTML = """<!DOCTYPE html>
             else if (repo.appType === "android-app") typeBadge = "Android App";
             else if (repo.appType === "multi-module") typeBadge = "Multi-Module / Hybrid";
             document.getElementById("active-app-type-badge").innerText = typeBadge;
-            
+
             // Set metadata status
             const statusEl = document.getElementById("active-app-metadata-status");
             if (repo.metadata_exists) {
@@ -3624,22 +3624,22 @@ INDEX_HTML = """<!DOCTYPE html>
             } else {
                 statusEl.innerHTML = `<span class="badge badge-error">Missing Metadata</span>`;
             }
-            
+
             // Update sidebar workspace picker
             const sidebarPicker = document.getElementById("sidebar-picker-section");
             if (sidebarPicker) {
                 sidebarPicker.style.display = "block";
                 document.getElementById("sidebar-app-title").innerText = repo.appName;
-                
+
                 let typeText = "App";
                 if (repo.appType === "chrome-extension") typeText = "Chrome";
                 else if (repo.appType === "flutter-app") typeText = "Flutter";
                 else if (repo.appType === "android-app") typeText = "Android";
                 else if (repo.appType === "multi-module") typeText = "Hybrid";
-                
+
                 const typeBadge = document.getElementById("sidebar-app-type");
                 typeBadge.innerText = typeText;
-                
+
                 // Clear type badge classes and set the correct one
                 typeBadge.className = "badge";
                 if (repo.appType === "chrome-extension") typeBadge.classList.add("badge-cyan");
@@ -3647,16 +3647,16 @@ INDEX_HTML = """<!DOCTYPE html>
                 else if (repo.appType === "android-app") typeBadge.classList.add("badge-success");
                 else typeBadge.classList.add("badge-purple");
             }
-            
+
             // Update dashboard button to back button indicator
             const dashboardBtn = document.getElementById("tab-nav-dashboard");
             if (dashboardBtn) {
                 dashboardBtn.innerHTML = `<span class="nav-icon">⬅️</span> Back to Dashboard`;
             }
-            
+
             // Setup module selector if multi-module
             setupModuleSelector();
-            
+
             // If metadata exists, show tabs and populate forms
             if (repo.metadata_exists) {
                 document.getElementById("missing-metadata-view").style.display = "none";
@@ -3699,7 +3699,7 @@ INDEX_HTML = """<!DOCTYPE html>
         function setupModuleSelector() {
             const container = document.getElementById("active-app-module-selector-container");
             const select = document.getElementById("active-app-module-select");
-            
+
             if (state.selectedRepo.metadata_exists && state.selectedRepo.metadata.modules && state.selectedRepo.metadata.modules.length > 1) {
                 container.style.display = "flex";
                 select.innerHTML = "";
@@ -3723,29 +3723,29 @@ INDEX_HTML = """<!DOCTYPE html>
         function backToDashboard() {
             state.selectedRepo = null;
             state.selectedModuleIdx = 0;
-            
+
             // Hide active app bar and missing metadata banner
             document.getElementById("active-app-bar").style.display = "none";
             document.getElementById("missing-metadata-view").style.display = "none";
-            
+
             // Disable and hide onboarding tabs
             enableOnboardingTabs(false);
-            
+
             // Hide sidebar workspace picker and onboarding title
             const sidebarPicker = document.getElementById("sidebar-picker-section");
             if (sidebarPicker) sidebarPicker.style.display = "none";
             const onboardingTitle = document.getElementById("onboarding-nav-title");
             if (onboardingTitle) onboardingTitle.style.display = "none";
-            
+
             // Restore dashboard button text
             const dashboardBtn = document.getElementById("tab-nav-dashboard");
             if (dashboardBtn) {
                 dashboardBtn.innerHTML = `<span class="nav-icon">📊</span> App Dashboard`;
             }
-            
+
             // Switch to dashboard tab
             switchTab('dashboard');
-            
+
             // Refresh dashboard
             fetchReposAndStatus();
         }
@@ -3773,25 +3773,25 @@ INDEX_HTML = """<!DOCTYPE html>
             const repo = state.selectedRepo;
             const meta = repo.metadata;
             if (!meta) return;
-            
+
             const mod = meta.modules[state.selectedModuleIdx];
             if (!mod) return;
-            
+
             // Package tab inputs
             document.getElementById("package-build-script").value = mod.buildScript || "";
             document.getElementById("package-artifact-path").value = mod.artifactPath || "";
             document.getElementById("build-module-name-label").innerText = `${repo.appName} — ${mod.name}`;
-            
+
             // Execute assets reload
             fetchRepoAssets();
             setupBuildExecutorPanel();
-            
+
             // Diagnostics
             runManifestDiagnostics();
-            
+
             // Store Listing tab inputs
             const isChrome = mod.type === "chrome-extension";
-            
+
             // Populate category select list dynamically
             const categorySelect = document.getElementById("store-category");
             categorySelect.innerHTML = "";
@@ -3834,15 +3834,15 @@ INDEX_HTML = """<!DOCTYPE html>
                     });
                     categorySelect.appendChild(group);
                 }
-                
+
                 // Set store titles from manifest/package
                 document.getElementById("store-title-package").value = (repo.manifest_info && repo.manifest_info.name) || repo.appName;
                 document.getElementById("store-summary-package").value = (repo.manifest_info && repo.manifest_info.description) || "";
-                
+
                 // Hide Android specific title/short desc
                 document.getElementById("store-title-android-group").style.display = "none";
                 document.getElementById("store-short-android-group").style.display = "none";
-                
+
                 // Populate description and category
                 if (mod.cwsListing) {
                     document.getElementById("store-detailed-desc").value = mod.cwsListing.detailedDescription || "";
@@ -3855,31 +3855,31 @@ INDEX_HTML = """<!DOCTYPE html>
                     categorySelect.value = catVal;
                     document.getElementById("store-language").value = mod.cwsListing.language || "en";
                 }
-                
+
                 // Populate Privacy Single Purpose
                 document.getElementById("privacy-purpose-group").style.display = "flex";
                 if (mod.cwsListing) {
                     document.getElementById("privacy-single-purpose").value = mod.cwsListing.singlePurpose || "";
                     document.getElementById("privacy-policy-url").value = mod.cwsListing.privacyPolicyUrl || "";
-                    
+
                     // Show CWS privacy questions
                     document.getElementById("cws-privacy-extensions").style.display = "flex";
-                    
+
                     const remoteUsed = mod.cwsListing.remoteCodeUsed === true;
                     document.getElementById("remote-code-yes").checked = remoteUsed;
                     document.getElementById("remote-code-no").checked = !remoteUsed;
                     toggleRemoteCodeJustification(remoteUsed);
-                    
+
                     document.getElementById("privacy-remote-justification").value = mod.cwsListing.remoteCodeJustification || "";
                     document.getElementById("privacy-certify-policy").checked = mod.cwsListing.dataUsageCertified === true;
                 } else {
                     document.getElementById("cws-privacy-extensions").style.display = "none";
                 }
-                
+
                 // Permissions justifications panel
                 document.getElementById("privacy-permissions-panel").style.display = "flex";
                 renderPermissionJustifications();
-                
+
             } else { // Flutter/Android App
                 // Google Play Console grouped categories (Apps vs Games)
                 const playGroups = {
@@ -3949,14 +3949,14 @@ INDEX_HTML = """<!DOCTYPE html>
                     });
                     categorySelect.appendChild(group);
                 }
-                
+
                 // Show Android specific title/short desc
                 document.getElementById("store-title-android-group").style.display = "block";
                 document.getElementById("store-short-android-group").style.display = "block";
-                
+
                 document.getElementById("store-title-package").value = repo.appName;
                 document.getElementById("store-summary-package").value = "";
-                
+
                 if (mod.playStoreListing) {
                     document.getElementById("store-title-android").value = mod.playStoreListing.title || repo.appName;
                     document.getElementById("store-short-android").value = mod.playStoreListing.shortDescription || "";
@@ -3969,36 +3969,36 @@ INDEX_HTML = """<!DOCTYPE html>
                     categorySelect.value = catVal;
                     document.getElementById("store-language").value = mod.playStoreListing.language || "en";
                 }
-                
+
                 // Hide Privacy Single Purpose
                 document.getElementById("privacy-purpose-group").style.display = "none";
                 document.getElementById("cws-privacy-extensions").style.display = "none";
                 if (mod.playStoreListing) {
                     document.getElementById("privacy-policy-url").value = mod.playStoreListing.privacyPolicyUrl || "";
                 }
-                
+
                 // Hide permissions justifications panel
                 document.getElementById("privacy-permissions-panel").style.display = "none";
             }
-            
+
             // Graphic Assets
             renderGraphicAssetsStatus();
-            
+
             // Distribution inputs
             document.getElementById("dist-visibility").value = mod.status === "published" ? "public" : (mod.status === "beta" ? "unlisted" : "private");
             document.getElementById("dist-store-id").value = mod.storeId || "";
             document.getElementById("dist-store-url").value = mod.storeUrl || "";
-            
+
             // Access inputs
             document.getElementById("access-test-instructions").value = (isChrome ? (mod.cwsListing && mod.cwsListing.testInstructions) : (mod.playStoreListing && mod.playStoreListing.testInstructions)) || "";
-            
+
             // Secrets tab inputs
             document.getElementById("secrets-client-id").value = state.credentials.client_id || "";
             document.getElementById("secrets-client-secret").value = state.credentials.client_secret || "";
-            
+
             // Checklist copyable fields
             populateOnboardingChecklist();
-            
+
             // Pre-flight checklist
             renderPreflightChecklist();
         }
@@ -4008,12 +4008,12 @@ INDEX_HTML = """<!DOCTYPE html>
             const mod = repo.metadata.modules[state.selectedModuleIdx];
             const box = document.getElementById("manifest-diagnostics-box");
             box.innerHTML = "";
-            
+
             if (mod.type !== "chrome-extension") {
                 box.innerHTML = `<p style="font-size:12px; color:var(--text-secondary);">No manifest diagnostics required for ${mod.type} modules.</p>`;
                 return;
             }
-            
+
             if (!repo.manifest_info) {
                 box.innerHTML = `
                     <div class="badge badge-error" style="width:100%; justify-content:center; padding:10px;">
@@ -4023,17 +4023,17 @@ INDEX_HTML = """<!DOCTYPE html>
                 `;
                 return;
             }
-            
+
             const info = repo.manifest_info;
             let checks = [];
-            
+
             // Check 1: manifest version
             checks.push({
                 name: "Manifest File Structure",
                 status: "success",
                 message: `Valid JSON found with name: <strong>${info.name}</strong>, version: <strong>${info.version}</strong>`
             });
-            
+
             // Check 2: description length
             const descLen = info.description ? info.description.length : 0;
             if (descLen === 0) {
@@ -4055,7 +4055,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     message: `Description length: <strong>${descLen} chars</strong> (Complies with 132 chars limit).`
                 });
             }
-            
+
             // Check 3: icons
             const hasIcons = info.icons && Object.keys(info.icons).length > 0;
             if (!hasIcons) {
@@ -4072,7 +4072,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     message: `Declared icons: <strong>${sizes.join(', ')}</strong>`
                 });
             }
-            
+
             // Render checks
             checks.forEach(c => {
                 const item = document.createElement("div");
@@ -4083,7 +4083,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 item.style.borderRadius = "8px";
                 item.style.background = "rgba(0,0,0,0.15)";
                 item.style.borderLeft = `3px solid var(--${c.status})`;
-                
+
                 item.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">${c.name}</span>
@@ -4100,32 +4100,32 @@ INDEX_HTML = """<!DOCTYPE html>
             const mod = repo.metadata.modules[state.selectedModuleIdx];
             const box = document.getElementById("permissions-justifications-box");
             box.innerHTML = "";
-            
+
             if (!repo.manifest_info) {
                 box.innerHTML = `<p style="font-size:12px; color:var(--text-secondary);">Initialize or correct manifest.json to show requested permissions.</p>`;
                 return;
             }
-            
+
             const info = repo.manifest_info;
             const allPermissions = [
                 ...(info.permissions || []),
                 ...(info.host_permissions || []),
                 ...(info.optional_permissions || [])
             ];
-            
+
             if (allPermissions.length === 0) {
                 box.innerHTML = `<p style="font-size:12px; color:var(--text-secondary);">No permissions declared in manifest.json. No justifications needed!</p>`;
                 return;
             }
-            
+
             // Get existing justifications
             const justifications = (mod.cwsListing && mod.cwsListing.permissionJustifications) || {};
-            
+
             allPermissions.forEach(perm => {
                 const value = justifications[perm] || "";
                 const group = document.createElement("div");
                 group.className = "form-group";
-                
+
                 group.innerHTML = `
                     <label style="color:var(--accent-cyan); font-family:'JetBrains Mono',monospace; font-size:11.5px; text-transform:none;">${perm}</label>
                     <textarea class="perm-justification-input" data-permission="${perm}" placeholder="Explain why the extension requires the '${perm}' permission..." style="min-height:60px; font-size:12px;">${value}</textarea>
@@ -4139,20 +4139,20 @@ INDEX_HTML = """<!DOCTYPE html>
             const mod = repo.metadata.modules[state.selectedModuleIdx];
             const box = document.getElementById("graphic-assets-box");
             box.innerHTML = "";
-            
+
             if (mod.type !== "chrome-extension") {
                 box.innerHTML = `<p style="font-size:12px; color:var(--text-secondary);">No graphic assets verification needed for ${mod.type} modules.</p>`;
                 return;
             }
-            
+
             if (!repo.manifest_info || !repo.manifest_info.icons) {
                 box.innerHTML = `<p style="font-size:12px; color:var(--text-secondary);">No icons declared in manifest.</p>`;
                 return;
             }
-            
+
             const icons = repo.manifest_info.icons;
             const sizes = Object.keys(icons);
-            
+
             if (sizes.length === 0) {
                 box.innerHTML = `
                     <div style="background:rgba(244,63,94,0.1); border:1px solid rgba(244,63,94,0.2); border-radius:8px; padding:12px; color:var(--error); font-size:12px;">
@@ -4161,7 +4161,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 `;
                 return;
             }
-            
+
             // Add a sub-header for Icons
             const iconHeader = document.createElement("h3");
             iconHeader.innerText = "Store Icons";
@@ -4180,7 +4180,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 const exists = icon.exists;
                 const statusColor = exists ? "success" : "error";
                 const statusSymbol = exists ? "✓" : "✗";
-                
+
                 const card = document.createElement("div");
                 card.style.display = "flex";
                 card.style.alignItems = "center";
@@ -4189,7 +4189,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 card.style.borderRadius = "8px";
                 card.style.background = "rgba(0,0,0,0.15)";
                 card.style.border = `1px solid var(--card-border)`;
-                
+
                 let imgPreview = "";
                 if (exists) {
                     const imgUrl = `/api/view-image?path=${encodeURIComponent(icon.abs_path)}`;
@@ -4197,7 +4197,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 } else {
                     imgPreview = `<div style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.2); border-radius: 4px; font-size: 14px; color: var(--error); margin-right: 12px;">⚠️</div>`;
                 }
-                
+
                 let downloadBtn = "";
                 if (exists) {
                     const downloadUrl = `/api/download?path=${encodeURIComponent(icon.abs_path)}`;
@@ -4229,7 +4229,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
             // Add Screenshots section
             const screenshots = repo.manifest_info.screenshots || [];
-            
+
             const screenHeader = document.createElement("h3");
             screenHeader.innerText = "Promotional Screenshots & Banners";
             screenHeader.className = "sub-header";
@@ -4243,7 +4243,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 container.style.display = "grid";
                 container.style.gridTemplateColumns = "repeat(auto-fill, minmax(130px, 1fr))";
                 container.style.gap = "10px";
-                
+
                 screenshots.forEach(scr => {
                     const imgUrl = `/api/view-image?path=${encodeURIComponent(scr.abs_path)}`;
                     const downloadUrl = `/api/download?path=${encodeURIComponent(scr.abs_path)}`;
@@ -4283,7 +4283,7 @@ INDEX_HTML = """<!DOCTYPE html>
             const meta = JSON.parse(JSON.stringify(state.selectedRepo.metadata));
             const mod = meta.modules[state.selectedModuleIdx];
             if (!mod) return;
-            
+
             if (tabName === 'package') {
                 mod.buildScript = document.getElementById("package-build-script").value.trim();
                 mod.artifactPath = document.getElementById("package-artifact-path").value.trim();
@@ -4296,12 +4296,12 @@ INDEX_HTML = """<!DOCTYPE html>
                     mod.cwsListing.singlePurpose = document.getElementById("privacy-single-purpose").value;
                     mod.cwsListing.privacyPolicyUrl = document.getElementById("privacy-policy-url").value.trim();
                     mod.cwsListing.testInstructions = document.getElementById("access-test-instructions").value;
-                    
+
                     // Save CWS specific privacy fields
                     mod.cwsListing.remoteCodeUsed = document.getElementById("remote-code-yes").checked;
                     mod.cwsListing.remoteCodeJustification = document.getElementById("privacy-remote-justification").value.trim();
                     mod.cwsListing.dataUsageCertified = document.getElementById("privacy-certify-policy").checked;
-                    
+
                     const justifications = {};
                     document.querySelectorAll(".perm-justification-input").forEach(ta => {
                         const perm = ta.getAttribute("data-permission");
@@ -4318,13 +4318,13 @@ INDEX_HTML = """<!DOCTYPE html>
                     mod.playStoreListing.privacyPolicyUrl = document.getElementById("privacy-policy-url").value.trim();
                     mod.playStoreListing.testInstructions = document.getElementById("access-test-instructions").value;
                 }
-                
+
                 const visibility = document.getElementById("dist-visibility").value;
                 mod.status = visibility === "public" ? "published" : (visibility === "unlisted" ? "beta" : "draft");
                 mod.storeId = document.getElementById("dist-store-id").value.trim();
                 mod.storeUrl = document.getElementById("dist-store-url").value.trim();
             }
-            
+
             fetch('/api/save-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4337,7 +4337,7 @@ INDEX_HTML = """<!DOCTYPE html>
             .then(data => {
                 if (data.success) {
                     showToast("✓ Saved changes to app-metadata.json");
-                    
+
                     fetchReposAndStatus();
                 } else {
                     showToast("Failed to save changes: " + data.error, true);
@@ -4351,27 +4351,16 @@ INDEX_HTML = """<!DOCTYPE html>
 
         function setupBuildExecutorPanel() {
             const nameEl = document.getElementById("build-module-name-label");
-            
+
             if (state.selectedRepo.metadata_exists && state.selectedRepo.metadata.modules) {
                 const mod = state.selectedRepo.metadata.modules[state.selectedModuleIdx];
                 if (mod) {
                     nameEl.innerText = `${state.selectedRepo.appName} — ${mod.name}`;
-                    const btn = document.getElementById("btn-run-build");
-                    btn.removeAttribute("disabled");
-                    if (document.getElementById("package-build-script").value.trim().length > 0) {
-                        btn.setAttribute("aria-disabled", "false");
-                        btn.removeAttribute("title");
-                    } else {
-                        btn.setAttribute("aria-disabled", "true");
-                        btn.setAttribute("title", "A build script command is required to execute a build.");
-                    }
+                    document.getElementById("btn-run-build").disabled = !document.getElementById("package-build-script").value;
                 }
             } else {
                 nameEl.innerText = `${state.selectedRepo.appName}`;
-                const btn = document.getElementById("btn-run-build");
-                btn.removeAttribute("disabled");
-                btn.setAttribute("aria-disabled", "true");
-                btn.setAttribute("title", "Select a valid application module first.");
+                document.getElementById("btn-run-build").disabled = true;
             }
         }
 
@@ -4380,7 +4369,7 @@ INDEX_HTML = """<!DOCTYPE html>
             const tempDiv = document.createElement("div");
             tempDiv.innerText = text;
             const escaped = tempDiv.innerHTML;
-            
+
             return escaped.split("\\n").map(line => {
                 const lineLower = line.toLowerCase();
                 if (line.startsWith("❌") || lineLower.includes("failed") || lineLower.includes("exception") || lineLower.includes("error")) {
@@ -4395,21 +4384,18 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         function triggerBuild() {
-            const btn = document.getElementById("btn-run-build");
-            const terminalPanel = document.querySelector(".terminal-panel");
-            if (btn.getAttribute("aria-disabled") === "true") {
-                if (!terminalPanel || !terminalPanel.classList.contains("active-build")) {
-                    showToast("Please enter a build script first.", true);
-                }
+            const buildScript = document.getElementById("package-build-script").value.trim();
+            if (!buildScript) {
+                showToast("Please enter a build script first.", true);
                 return;
             }
 
-            const buildScript = document.getElementById("package-build-script").value.trim();
-
             const consoleOutput = document.getElementById("build-terminal-output");
             const badge = document.getElementById("build-status-badge");
-            
-            btn.setAttribute("aria-disabled", "true");
+            const btn = document.getElementById("btn-run-build");
+            const terminalPanel = document.querySelector(".terminal-panel");
+
+            btn.disabled = true;
             if (terminalPanel) terminalPanel.classList.add("active-build");
             badge.style.display = "inline-flex";
             badge.className = "badge badge-cyan";
@@ -4433,22 +4419,22 @@ INDEX_HTML = """<!DOCTYPE html>
                     consoleOutput.innerHTML += colorizeLog(`❌ Failed to trigger build: ${data.error}`);
                     badge.className = "badge badge-error";
                     badge.innerHTML = "❌ Error";
+                    btn.disabled = false;
                     if (terminalPanel) terminalPanel.classList.remove("active-build");
-                    setupBuildExecutorPanel();
                 }
             })
             .catch(err => {
                 consoleOutput.innerHTML += colorizeLog(`❌ Connection error triggering build: ${err}`);
                 badge.className = "badge badge-error";
                 badge.innerHTML = "❌ Failed";
+                btn.disabled = false;
                 if (terminalPanel) terminalPanel.classList.remove("active-build");
-                setupBuildExecutorPanel();
             });
         }
 
         function startBuildLogPolling() {
             if (state.activeBuildInterval) clearInterval(state.activeBuildInterval);
-            
+
             const consoleOutput = document.getElementById("build-terminal-output");
             const badge = document.getElementById("build-status-badge");
             const btn = document.getElementById("btn-run-build");
@@ -4464,10 +4450,9 @@ INDEX_HTML = """<!DOCTYPE html>
 
                             if (data.status !== "running") {
                                 clearInterval(state.activeBuildInterval);
-                                state.activeBuildInterval = null;
+                                btn.disabled = false;
                                 if (terminalPanel) terminalPanel.classList.remove("active-build");
-                                setupBuildExecutorPanel();
-                                
+
                                 if (data.status === "success") {
                                     badge.className = "badge badge-success";
                                     badge.innerHTML = "✅ Success";
@@ -4525,9 +4510,9 @@ INDEX_HTML = """<!DOCTYPE html>
             const guideList = document.getElementById("onboarding-guide-steps");
             const assetsContainer = document.getElementById("secrets-copy-assets-container");
             assetsContainer.innerHTML = "";
-            
+
             const isChrome = mod.type === "chrome-extension";
-            
+
             if (isChrome) {
                 guideList.innerHTML = `
                     <li>Go to the <a href="https://chrome.google.com/webstore/devconsole" target="_blank">Chrome Web Store Developer Console</a>.</li>
@@ -4555,7 +4540,7 @@ INDEX_HTML = """<!DOCTYPE html>
                         const sizes = Object.keys(icons).map(Number).sort((a,b) => b-a);
                         if (sizes.length > 0) selectedIconSize = String(sizes[0]);
                     }
-                    
+
                     const icon = icons[selectedIconSize];
                     if (icon && icon.exists) {
                         const iconUrl = `/api/view-image?path=${encodeURIComponent(icon.abs_path)}`;
@@ -4642,7 +4627,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                 assetsContainer.innerHTML = `
                     <h3 class="sub-header" style="font-size: 12px;">Store Listing Copyable Assets</h3>
-                    
+
                     <div class="form-group">
                         <label>Short Description (Summary)</label>
                         <div class="copy-field">
@@ -4722,7 +4707,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                 assetsContainer.innerHTML = `
                     <h3 class="sub-header" style="font-size: 12px;">Store Listing Copyable Assets</h3>
-                    
+
                     <div class="form-group">
                         <label>Play Store App Title</label>
                         <div class="copy-field">
@@ -4796,7 +4781,7 @@ INDEX_HTML = """<!DOCTYPE html>
         function triggerGoogleOAuth() {
             const btn = document.getElementById("btn-oauth-trigger");
             const text = document.getElementById("oauth-status-text");
-            
+
             const client_id = document.getElementById("secrets-client-id").value.trim();
             const client_secret = document.getElementById("secrets-client-secret").value.trim();
             const alertBox = document.getElementById("secrets-alert-box");
@@ -4854,7 +4839,7 @@ INDEX_HTML = """<!DOCTYPE html>
                         if (data.status === "success") {
                             clearInterval(pollInterval);
                             state.credentials.refresh_token = data.refresh_token;
-                            
+
                             text.innerHTML = `<span class="badge badge-success">✓ Google Account Connected!</span> Refresh Token captured. Ready to provision secrets.`;
                             btn.style.display = "none";
                             nextBtn.setAttribute("aria-disabled", "false");
@@ -4927,13 +4912,13 @@ def main():
     print("====================================================")
     print("🚀 Starting Saturn App Console & Registry Web Server...")
     print("====================================================")
-    
+
     server = HTTPServer(('localhost', SERVER_PORT), WebConsoleHandler)
-    
+
     url = f"http://localhost:{SERVER_PORT}"
     print(f"\n🌐 Web Console is listening at: {url}")
     print("Please open this link in your browser to access the console.")
-    
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:

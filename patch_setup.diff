@@ -1,0 +1,26 @@
+--- scripts/onboard-wizard.py
++++ scripts/onboard-wizard.py
+@@ -4355,10 +4355,20 @@
+                 const mod = state.selectedRepo.metadata.modules[state.selectedModuleIdx];
+                 if (mod) {
+                     nameEl.innerText = `${state.selectedRepo.appName} — ${mod.name}`;
+-                    document.getElementById("btn-run-build").disabled = !document.getElementById("package-build-script").value;
++                    const btn = document.getElementById("btn-run-build");
++                    btn.removeAttribute("disabled");
++                    if (document.getElementById("package-build-script").value.trim().length > 0) {
++                        btn.setAttribute("aria-disabled", "false");
++                        btn.removeAttribute("title");
++                    } else {
++                        btn.setAttribute("aria-disabled", "true");
++                        btn.setAttribute("title", "A build script command is required to execute a build.");
++                    }
+                 }
+             } else {
+                 nameEl.innerText = `${state.selectedRepo.appName}`;
+-                document.getElementById("btn-run-build").disabled = true;
++                const btn = document.getElementById("btn-run-build");
++                btn.removeAttribute("disabled");
++                btn.setAttribute("aria-disabled", "true");
++                btn.setAttribute("title", "Select a valid application module first.");
+             }
+         }

@@ -9,3 +9,7 @@
 ## 2026-06-07 - Replace blocking alerts with accessible toast notifications
 **Learning:** Thread-blocking alerts for simple UI feedback disrupt the user experience and are inaccessible. Using temporary inline text changes with `aria-live="polite"` provides a seamless and accessible state change for screen readers.
 **Action:** Always avoid `alert()` for simple interactive feedback, and opt for inline state changes with ARIA support.
+
+## 2024-05-14 - Migrate Build Button to aria-disabled
+**Learning:** In the `scripts/onboard-wizard.py` dashboard UI, replacing native `disabled` attributes with `aria-disabled="true"` correctly exposes the button's disabled state to screen readers and allows hover tooltips to render. However, because `aria-disabled` does not block pointer events natively, JavaScript event guards must be added to the button's click handler to prevent execution. Additionally, when using interval pollers (like `state.activeBuildInterval`) as boolean state flags for these guards, they must be explicitly reset to `null` after calling `clearInterval` to avoid state locking bugs.
+**Action:** Always complement `aria-disabled` conversions with strict JavaScript event guards, ensure interval variables are nulled out when cleared, and trigger validation checks on `oninput` rather than `onchange` or `onblur` for immediate visual feedback.

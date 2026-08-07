@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="text" id="test-input" placeholder="Type here" oninput="console.log('Input event fired! Value:', this.value)">
+    <script>
+        document.getElementById('test-input').addEventListener('input', (e) => {
+            console.log('Event listener fired! Value:', e.target.value);
+        });
+    </script>
+</body>
+</html>
