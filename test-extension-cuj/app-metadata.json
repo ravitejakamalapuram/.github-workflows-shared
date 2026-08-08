@@ -1,0 +1,11 @@
+{
+  "appName": "test-extension-cuj",
+  "appType": "chrome-extension",
+  "modules": [
+    {
+      "name": "Chrome Extension",
+      "type": "chrome-extension",
+      "status": "draft"
+    }
+  ]
+}
