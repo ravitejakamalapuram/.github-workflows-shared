@@ -13,3 +13,7 @@
 **Vulnerability:** Command injection vulnerability in `scripts/onboard-wizard.py`. Passing user-provided strings like `build_script` to `subprocess.Popen(..., shell=True)` allows attackers to execute arbitrary commands by appending shell metacharacters (e.g., `; rm -rf /`).
 **Learning:** Local Python servers accepting build commands must treat inputs as untrusted and properly tokenize them rather than evaluating them in a shell context.
 **Prevention:** Always use `shlex.split()` to tokenize command strings into an array of arguments, and pass `shell=False` to `subprocess.Popen` or `subprocess.run`.
+## 2024-05-25 - Command Injection via subprocess.run shell=True
+**Vulnerability:** Shell=True used in utility scripts passing user input directly to the shell, opening command injection vulnerabilities.
+**Learning:** The `subprocess.run` commands in Python scripts like `merge-pr-after-wait.py` and `rebase-all-prs.py` use `shell=True`, making them vulnerable if arbitrary user inputs are parsed.
+**Prevention:** Replace `shell=True` with `shell=False` and use `shlex.split()` to tokenize commands properly.
