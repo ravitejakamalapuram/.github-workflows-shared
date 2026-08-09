@@ -28,9 +28,8 @@ jobs:
       - name: Check YAML Syntax
         run: |
           echo "Validating all YAML files..."
-          find . -type f \( -name "*.yml" -o -name "*.yaml" \) | while read file; do
-            /usr/local/bin/yq eval '.' "$file" > /dev/null || exit 1
-          done
+          # Optimized: Use xargs to batch files and avoid spawning a new yq process for every file
+          find . -type f \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 -r /usr/local/bin/yq eval '.' > /dev/null
           echo "✅ All YAML files are valid"
   
   validate-workflows:
