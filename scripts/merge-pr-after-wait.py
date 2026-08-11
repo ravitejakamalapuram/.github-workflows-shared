@@ -2,6 +2,7 @@
 """
 Try to merge a PR, waiting for GitHub to recalculate merge status
 """
+import shlex
 import subprocess
 import time
 import sys
@@ -11,8 +12,8 @@ REPO_PATH = "/Users/rkamalapuram/git-personal/.github-workflows-shared"
 
 def run_cmd(cmd):
     result = subprocess.run(
-        cmd,
-        shell=True,
+        shlex.split(cmd),
+        shell=False,
         capture_output=True,
         text=True,
         cwd=REPO_PATH
