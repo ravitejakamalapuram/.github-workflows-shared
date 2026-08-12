@@ -52,3 +52,7 @@
 ## 2026-06-30 - Optimize JQ execution inside nested CI loops
 **Learning:** Running process substitutions with commands like `jq` inside nested `while` loops over files (e.g., `done < <(echo "$VAR" | jq ...)`) causes N x M process spawns, severely degrading CI execution speed.
 **Action:** Always cache the command output into a shell variable beforehand and use a heredoc (`done <<< "$CACHED_VAR"`) within loops to avoid redundant process initialization.
+
+## 2024-11-20 - Optimize jq process spawning in loops
+**Learning:** Updating a JSON payload inside a nested shell loop using process substitutions (e.g., `RESULTS=$(echo "$RESULTS" | jq ...)`) causes a massive number of short-lived `jq` processes to spawn (N x M), severely slowing down execution.
+**Action:** Always batch JSON construction. Collect key-value pairs into a Bash array (`JQ_ARGS+=(--arg "$KEY" "$VAL")`) and invoke `jq` only once outside the loop (e.g., `RESULTS=$(echo "$RESULTS" | jq "${JQ_ARGS[@]}" '. + $ARGS.named')`).
