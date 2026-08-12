@@ -2772,7 +2772,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     
                     <div class="form-group">
                         <label for="package-build-script">Build Script Command</label>
-                        <input type="text" id="package-build-script" placeholder="e.g. npm run build">
+                        <input type="text" id="package-build-script" placeholder="e.g. npm run build" oninput="setupBuildExecutorPanel()">
                     </div>
                     <div class="form-group" style="margin-top: 12px;">
                         <label for="package-artifact-path">Artifact Path (Target ZIP/APK/AAB)</label>
@@ -4351,16 +4351,26 @@ INDEX_HTML = """<!DOCTYPE html>
 
         function setupBuildExecutorPanel() {
             const nameEl = document.getElementById("build-module-name-label");
+            const btn = document.getElementById("btn-run-build");
+            const terminalPanel = document.querySelector(".terminal-panel");
+            const isActive = terminalPanel && terminalPanel.classList.contains("active-build");
+
+            btn.removeAttribute("disabled");
             
             if (state.selectedRepo.metadata_exists && state.selectedRepo.metadata.modules) {
                 const mod = state.selectedRepo.metadata.modules[state.selectedModuleIdx];
                 if (mod) {
                     nameEl.innerText = `${state.selectedRepo.appName} — ${mod.name}`;
-                    document.getElementById("btn-run-build").disabled = !document.getElementById("package-build-script").value;
+                    const hasScript = document.getElementById("package-build-script").value.trim().length > 0;
+                    if (!hasScript || isActive) {
+                        btn.setAttribute("aria-disabled", "true");
+                    } else {
+                        btn.setAttribute("aria-disabled", "false");
+                    }
                 }
             } else {
                 nameEl.innerText = `${state.selectedRepo.appName}`;
-                document.getElementById("btn-run-build").disabled = true;
+                btn.setAttribute("aria-disabled", "true");
             }
         }
 
@@ -4384,6 +4394,9 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         function triggerBuild() {
+            const btn = document.getElementById("btn-run-build");
+            if (btn.getAttribute("aria-disabled") === "true") return;
+
             const buildScript = document.getElementById("package-build-script").value.trim();
             if (!buildScript) {
                 showToast("Please enter a build script first.", true);
@@ -4392,10 +4405,12 @@ INDEX_HTML = """<!DOCTYPE html>
 
             const consoleOutput = document.getElementById("build-terminal-output");
             const badge = document.getElementById("build-status-badge");
-            const btn = document.getElementById("btn-run-build");
             const terminalPanel = document.querySelector(".terminal-panel");
             
-            btn.disabled = true;
+            if (terminalPanel && terminalPanel.classList.contains("active-build")) return;
+
+            btn.setAttribute("aria-disabled", "true");
+            btn.removeAttribute("disabled");
             if (terminalPanel) terminalPanel.classList.add("active-build");
             badge.style.display = "inline-flex";
             badge.className = "badge badge-cyan";
@@ -4419,16 +4434,16 @@ INDEX_HTML = """<!DOCTYPE html>
                     consoleOutput.innerHTML += colorizeLog(`❌ Failed to trigger build: ${data.error}`);
                     badge.className = "badge badge-error";
                     badge.innerHTML = "❌ Error";
-                    btn.disabled = false;
                     if (terminalPanel) terminalPanel.classList.remove("active-build");
+                    setupBuildExecutorPanel();
                 }
             })
             .catch(err => {
                 consoleOutput.innerHTML += colorizeLog(`❌ Connection error triggering build: ${err}`);
                 badge.className = "badge badge-error";
                 badge.innerHTML = "❌ Failed";
-                btn.disabled = false;
                 if (terminalPanel) terminalPanel.classList.remove("active-build");
+                setupBuildExecutorPanel();
             });
         }
 
@@ -4450,8 +4465,9 @@ INDEX_HTML = """<!DOCTYPE html>
 
                             if (data.status !== "running") {
                                 clearInterval(state.activeBuildInterval);
-                                btn.disabled = false;
+                                state.activeBuildInterval = null;
                                 if (terminalPanel) terminalPanel.classList.remove("active-build");
+                                setupBuildExecutorPanel();
                                 
                                 if (data.status === "success") {
                                     badge.className = "badge badge-success";
