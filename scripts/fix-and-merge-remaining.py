@@ -4,6 +4,7 @@ Fix remaining PRs and merge them
 """
 import subprocess
 import sys
+import shlex
 
 GH_PATH = "/opt/homebrew/bin/gh"
 
@@ -11,8 +12,8 @@ def run_command(cmd):
     """Run command and return result"""
     try:
         result = subprocess.run(
-            cmd,
-            shell=True,
+            shlex.split(cmd),
+            shell=False,
             capture_output=True,
             text=True,
             cwd="/Users/rkamalapuram/git-personal/.github-workflows-shared"
