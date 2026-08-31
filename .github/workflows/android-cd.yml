@@ -170,7 +170,7 @@ jobs:
             UPDATED=$(jq -r 'if .modules then any(.modules[]; .type == "android-app") else false end' "$FILE")
 
             if [ "$UPDATED" = "true" ]; then
-              jq --arg store_id "${{ inputs.package-name }}" '
+              jq --arg store_id "$PACKAGE_NAME" '
                 if .modules then
                   .modules |= map(
                     if .type == "android-app" then
