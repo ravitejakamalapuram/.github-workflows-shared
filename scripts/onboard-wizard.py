@@ -1525,7 +1525,7 @@ INDEX_HTML = """<!DOCTYPE html>
             width: 100%;
         }
 
-        .nav-btn:hover:not(:disabled) {
+        .nav-btn:hover:not(:disabled):not([aria-disabled="true"]) {
             color: var(--text-primary);
             background: rgba(255, 255, 255, 0.03);
             transform: translateX(4px);
@@ -1550,7 +1550,7 @@ INDEX_HTML = """<!DOCTYPE html>
             border-radius: 2px;
         }
 
-        .nav-btn:disabled {
+        .nav-btn:disabled, .nav-btn[aria-disabled="true"] {
             opacity: 0.3;
             cursor: not-allowed;
         }
@@ -2453,13 +2453,13 @@ INDEX_HTML = """<!DOCTYPE html>
                     <span class="nav-icon">📊</span> App Dashboard
                 </button>
                 <div class="nav-section-title" id="onboarding-nav-title" style="display: none;">Onboarding Steps</div>
-                <button class="nav-btn" id="tab-nav-package" onclick="switchTab('package')" style="display: none;" disabled>
+                <button class="nav-btn" id="tab-nav-package" onclick="switchTab('package')" style="display: none;" aria-disabled="true" title="Please initialize repository metadata to unlock this step.">
                     <span class="nav-icon">📦</span> 1. Package & Build
                 </button>
-                <button class="nav-btn" id="tab-nav-store" onclick="switchTab('store')" style="display: none;" disabled>
+                <button class="nav-btn" id="tab-nav-store" onclick="switchTab('store')" style="display: none;" aria-disabled="true" title="Please initialize repository metadata to unlock this step.">
                     <span class="nav-icon">🎨</span> 2. Store Listing
                 </button>
-                <button class="nav-btn" id="tab-nav-secrets" onclick="switchTab('secrets')" style="display: none;" disabled>
+                <button class="nav-btn" id="tab-nav-secrets" onclick="switchTab('secrets')" style="display: none;" aria-disabled="true" title="Please initialize repository metadata to unlock this step.">
                     <span class="nav-icon">🚀</span> 3. Secrets & CI/CD
                 </button>
             </nav>
@@ -3304,6 +3304,11 @@ INDEX_HTML = """<!DOCTYPE html>
         }
 
         function switchTab(tabName) {
+            const targetBtn = document.getElementById(`tab-nav-${tabName}`);
+            if (targetBtn && targetBtn.getAttribute("aria-disabled") === "true") {
+                showToast("Please initialize repository metadata before configuring this step.", true);
+                return;
+            }
             const tabs = ['dashboard', 'package', 'store', 'secrets'];
             tabs.forEach(t => {
                 const content = document.getElementById(`tab-content-${t}`);
@@ -3680,7 +3685,12 @@ INDEX_HTML = """<!DOCTYPE html>
             tabs.forEach(t => {
                 const btn = document.getElementById(`tab-nav-${t}`);
                 if (btn) {
-                    btn.disabled = !enable;
+                    btn.setAttribute("aria-disabled", !enable ? "true" : "false");
+                    if (!enable) {
+                        btn.setAttribute("title", "Please initialize repository metadata to unlock this step.");
+                    } else {
+                        btn.removeAttribute("title");
+                    }
                     btn.style.display = enable ? "flex" : "none";
                 }
             });
