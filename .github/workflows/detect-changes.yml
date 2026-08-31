@@ -66,6 +66,7 @@ jobs:
           
           # Initialize results
           RESULTS="{}"
+          JQ_ARGS=()
           
           # Parse paths and names arrays
           PATHS_ARRAY=$(echo "$PATHS" | jq -r '.[]')
@@ -104,16 +105,20 @@ jobs:
             if [ "$MATCHES" = true ]; then
               echo "${OUTPUT_NAME}=true" >> $GITHUB_OUTPUT
               echo "✅ ${OUTPUT_NAME}: changes detected"
-              RESULTS=$(echo "$RESULTS" | jq --arg key "$OUTPUT_NAME" --arg val "true" '.[$key] = $val')
+              JQ_ARGS+=(--arg "$OUTPUT_NAME" "true")
             else
               echo "${OUTPUT_NAME}=false" >> $GITHUB_OUTPUT
               echo "⏭️  ${OUTPUT_NAME}: no changes"
-              RESULTS=$(echo "$RESULTS" | jq --arg key "$OUTPUT_NAME" --arg val "false" '.[$key] = $val')
+              JQ_ARGS+=(--arg "$OUTPUT_NAME" "false")
             fi
             
             INDEX=$((INDEX + 1))
           done < <(echo "$PATHS_ARRAY") 3< <(echo "$NAMES_ARRAY")
           
+          if [ ${#JQ_ARGS[@]} -gt 0 ]; then
+            RESULTS=$(echo "$RESULTS" | jq "${JQ_ARGS[@]}" '. + $ARGS.named')
+          fi
+
           # Output JSON results
           echo "changes=$RESULTS" >> $GITHUB_OUTPUT
           
