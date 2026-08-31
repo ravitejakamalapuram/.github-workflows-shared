@@ -4594,7 +4594,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     remoteCodeHtml += `
                         <div class="form-group" style="padding-left: 8px; border-left: 2px solid var(--accent-cyan); margin-bottom: 12px;">
                             <label style="font-size: 11px; color: var(--accent-cyan);">Remote Code Justification</label>
-                            <div class="copy-field">
+                            <div class="copy-field" aria-live="polite">
                                 <textarea id="copy-field-remote-just" readonly style="min-height: 50px; font-size: 11px;">${remoteJustification}</textarea>
                                 <button class="copy-btn-inline" onclick="copyValue('copy-field-remote-just')" style="top: 10px; padding: 2px 6px; font-size: 10px;">Copy</button>
                             </div>
@@ -4616,7 +4616,7 @@ INDEX_HTML = """<!DOCTYPE html>
                         permsHtml += `
                             <div class="form-group" style="padding-left: 8px; border-left: 2px solid var(--accent-cyan); margin-bottom: 8px;">
                                 <label style="font-family: monospace; font-size: 11px; color: var(--accent-cyan);">${perm} justification</label>
-                                <div class="copy-field">
+                                <div class="copy-field" aria-live="polite">
                                     <textarea id="${inputId}" readonly style="min-height: 45px; font-size: 11px;">${val}</textarea>
                                     <button class="copy-btn-inline" onclick="copyValue('${inputId}')" style="top: 10px; padding: 2px 6px; font-size: 10px;">Copy</button>
                                 </div>
@@ -4630,7 +4630,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     
                     <div class="form-group">
                         <label>Short Description (Summary)</label>
-                        <div class="copy-field">
+                        <div class="copy-field" aria-live="polite">
                             <input type="text" id="copy-field-short" value="${shortDesc}" readonly>
                             <button class="copy-btn-inline" onclick="copyValue('copy-field-short')">Copy</button>
                         </div>
@@ -4638,7 +4638,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Detailed Description</label>
-                        <div class="copy-field">
+                        <div class="copy-field" aria-live="polite">
                             <textarea id="copy-field-long" readonly style="min-height: 120px;">${detailedDesc}</textarea>
                             <button class="copy-btn-inline" onclick="copyValue('copy-field-long')" style="top: 20px;">Copy</button>
                         </div>
@@ -4646,7 +4646,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Single Purpose Description</label>
-                        <div class="copy-field">
+                        <div class="copy-field" aria-live="polite">
                             <input type="text" id="copy-field-purpose" value="${singlePurpose}" readonly>
                             <button class="copy-btn-inline" onclick="copyValue('copy-field-purpose')">Copy</button>
                         </div>
@@ -4655,14 +4655,14 @@ INDEX_HTML = """<!DOCTYPE html>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Category</label>
-                            <div class="copy-field">
+                            <div class="copy-field" aria-live="polite">
                                 <input type="text" id="copy-field-category" value="${category}" readonly>
                                 <button class="copy-btn-inline" onclick="copyValue('copy-field-category')">Copy</button>
                             </div>
                         </div>
                         <div class="form-group">
                             <label>Default Language</label>
-                            <div class="copy-field">
+                            <div class="copy-field" aria-live="polite">
                                 <input type="text" id="copy-field-language" value="${language}" readonly>
                                 <button class="copy-btn-inline" onclick="copyValue('copy-field-language')">Copy</button>
                             </div>
@@ -4671,7 +4671,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Privacy Policy Link</label>
-                        <div class="copy-field">
+                        <div class="copy-field" aria-live="polite">
                             <input type="text" id="copy-field-privacy" value="${privacyUrl}" readonly>
                             <button class="copy-btn-inline" onclick="copyValue('copy-field-privacy')">Copy</button>
                         </div>
@@ -4710,7 +4710,7 @@ INDEX_HTML = """<!DOCTYPE html>
                     
                     <div class="form-group">
                         <label>Play Store App Title</label>
-                        <div class="copy-field">
+                        <div class="copy-field" aria-live="polite">
                             <input type="text" id="copy-field-title" value="${title}" readonly>
                             <button class="copy-btn-inline" onclick="copyValue('copy-field-title')">Copy</button>
                         </div>
@@ -4718,7 +4718,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Short Description</label>
-                        <div class="copy-field">
+                        <div class="copy-field" aria-live="polite">
                             <input type="text" id="copy-field-short" value="${shortDesc}" readonly>
                             <button class="copy-btn-inline" onclick="copyValue('copy-field-short')">Copy</button>
                         </div>
@@ -4726,7 +4726,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Full Description</label>
-                        <div class="copy-field">
+                        <div class="copy-field" aria-live="polite">
                             <textarea id="copy-field-long" readonly style="min-height: 120px;">${detailedDesc}</textarea>
                             <button class="copy-btn-inline" onclick="copyValue('copy-field-long')" style="top: 20px;">Copy</button>
                         </div>
@@ -4735,14 +4735,14 @@ INDEX_HTML = """<!DOCTYPE html>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Category</label>
-                            <div class="copy-field">
+                            <div class="copy-field" aria-live="polite">
                                 <input type="text" id="copy-field-category" value="${category}" readonly>
                                 <button class="copy-btn-inline" onclick="copyValue('copy-field-category')">Copy</button>
                             </div>
                         </div>
                         <div class="form-group">
                             <label>Default Language</label>
-                            <div class="copy-field">
+                            <div class="copy-field" aria-live="polite">
                                 <input type="text" id="copy-field-language" value="${language}" readonly>
                                 <button class="copy-btn-inline" onclick="copyValue('copy-field-language')">Copy</button>
                             </div>
@@ -4751,7 +4751,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
                     <div class="form-group">
                         <label>Privacy Policy Link</label>
-                        <div class="copy-field">
+                        <div class="copy-field" aria-live="polite">
                             <input type="text" id="copy-field-privacy" value="${privacyUrl}" readonly>
                             <button class="copy-btn-inline" onclick="copyValue('copy-field-privacy')">Copy</button>
                         </div>

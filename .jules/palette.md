@@ -9,3 +9,6 @@
 ## 2026-06-07 - Replace blocking alerts with accessible toast notifications
 **Learning:** Thread-blocking alerts for simple UI feedback disrupt the user experience and are inaccessible. Using temporary inline text changes with `aria-live="polite"` provides a seamless and accessible state change for screen readers.
 **Action:** Always avoid `alert()` for simple interactive feedback, and opt for inline state changes with ARIA support.
+## 2026-07-29 - ARIA Live regions on non-interactive wrappers
+**Learning:** Applying aria-live directly to interactive buttons is an anti-pattern. Instead, wrap them in a non-interactive container and apply the aria-live attribute there on initial load to ensure maximum screen reader compatibility for dynamic feedback.
+**Action:** Add aria-live="polite" to the parent .copy-field wrapper instead of the .copy-btn-inline itself.
