@@ -54,7 +54,8 @@ runs:
 
     - name: Extract Manifest Info
       id: manifest-info
-      env: { EXT_DIR: ${{ inputs.extension-dir }} }
+      env:
+        EXT_DIR: ${{ inputs.extension-dir }}
       run: |
         IFS=$'\t' read -r VERSION NAME EXT_VERSION < <(jq -r '[(.manifest_version // "Unknown"), (.name // "Unknown"), (.version // "Unknown")] | @tsv' "$EXT_DIR/manifest.json")
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -64,7 +65,8 @@ runs:
 
     - name: Validate Icon Files
       if: inputs.check-icons == 'true'
-      env: { EXT_DIR: ${{ inputs.extension-dir }} }
+      env:
+        EXT_DIR: ${{ inputs.extension-dir }}
       run: |
         set -e
         missing=0
@@ -76,7 +78,8 @@ runs:
 
     - name: Validate Release Assets and Compliance
       if: inputs.release-compliance == 'true'
-      env: { EXT_DIR: ${{ inputs.extension-dir }} }
+      env:
+        EXT_DIR: ${{ inputs.extension-dir }}
       run: python3 "${{ github.action_path }}/../../../scripts/validate-release-assets.py" --path . --type chrome-extension --ext-dir "$EXT_DIR"
       shell: bash
 
