@@ -1,0 +1,125 @@
+name: Reusable Chrome Extension Publish (by name)
+
+# Publishes any extension listed in config/chrome-extensions.json. One Chrome Web
+# Store OAuth client + refresh token covers every item under the publisher, so a
+# single caller repo that holds those secrets can release all of them. Versioning
+# comes from the app's manifest (or the version input); no tags are created.
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: 'Key in config/chrome-extensions.json'
+        required: true
+        type: string
+      ref:
+        description: 'Git ref of the app repo'
+        required: false
+        type: string
+        default: 'main'
+      version:
+        description: 'Override manifest version (must exceed any version ever uploaded)'
+        required: false
+        type: string
+        default: ''
+      publish:
+        description: 'Submit for review after upload (false = draft only)'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      chrome-client-id:
+        required: true
+      chrome-client-secret:
+        required: true
+      chrome-refresh-token:
+        required: true
+      checkout-token:
+        description: 'Token that can read private app repos (optional for public repos)'
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Load registry
+        uses: actions/checkout@v4
+        with:
+          repository: ravitejakamalapuram/.github-workflows-shared
+          ref: v1
+          path: shared
+          sparse-checkout: config
+
+      - name: Resolve app
+        id: app
+        env:
+          APP: ${{ inputs.app }}
+        run: |
+          set -euo pipefail
+          entry=$(jq -c --arg a "$APP" '.extensions[$a] // empty' shared/config/chrome-extensions.json)
+          [ -n "$entry" ] || { echo "::error::'$APP' is not in config/chrome-extensions.json"; exit 1; }
+          for k in repo id dir build; do echo "$k=$(jq -r --arg k "$k" '.[$k]' <<<"$entry")" >> "$GITHUB_OUTPUT"; done
+        shell: bash
+
+      - name: Checkout app
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.app.outputs.repo }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.checkout-token || github.token }}
+          path: app
+
+      - uses: actions/setup-node@v4
+        if: steps.app.outputs.build != ''
+        with:
+          node-version: '22'
+
+      - name: Build
+        if: steps.app.outputs.build != ''
+        working-directory: app
+        env:
+          BUILD: ${{ steps.app.outputs.build }}
+        run: bash -euo pipefail -c "$BUILD"
+        shell: bash
+
+      - name: Stage runtime files
+        id: stage
+        env:
+          DIR: ${{ steps.app.outputs.dir }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p stage
+          # Repo-root extensions: ship runtime files only, not store assets or docs.
+          rsync -a "app/$DIR/" stage/ \
+            --exclude '.git*' --exclude '.github' --exclude 'node_modules' --exclude 'chrome-store' \
+            --exclude 'store-assets' --exclude 'store' --exclude 'scratch' --exclude 'builds' --exclude 'docs' \
+            --exclude 'tests' --exclude 'scripts' --exclude '*.md' --exclude 'package*.json' \
+            --exclude 'app-metadata.json' --exclude '*_preview.png' --exclude '*promo_tile*.png' \
+            --exclude '*.zip' --exclude '.DS_Store' --exclude '*.map' --exclude '.env*'
+          test -f stage/manifest.json || { echo "::error::manifest.json missing in $DIR"; exit 1; }
+          if [ -n "$VERSION" ]; then
+            jq --arg v "$VERSION" '.version = $v' stage/manifest.json > m.json && mv m.json stage/manifest.json
+          fi
+          echo "version=$(jq -r .version stage/manifest.json)" >> "$GITHUB_OUTPUT"
+          (cd stage && zip -qr ../extension.zip .)
+          echo "Packaged $(jq -r .name stage/manifest.json) v$(jq -r .version stage/manifest.json): $(du -h extension.zip | cut -f1)"
+        shell: bash
+
+      - name: Upload to Chrome Web Store
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/publish-cws@v1
+        with:
+          extension-id: ${{ steps.app.outputs.id }}
+          client-id: ${{ secrets.chrome-client-id }}
+          client-secret: ${{ secrets.chrome-client-secret }}
+          refresh-token: ${{ secrets.chrome-refresh-token }}
+          zip-path: extension.zip
+          auto-publish: ${{ inputs.publish && 'true' || 'false' }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.app }}-v${{ steps.stage.outputs.version }}
+          path: extension.zip

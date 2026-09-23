@@ -1,0 +1,13 @@
+{
+  "publisherId": "9637cb78-fa33-49dd-a4cb-91066ff182e3",
+  "extensions": {
+    "echokit":          { "repo": "ravitejakamalapuram/echokit",          "id": "jndhbmaokpclbpjoogffaimahadpidcf", "dir": "extension",      "build": "" },
+    "json-workbench":   { "repo": "ravitejakamalapuram/json-workbench",   "id": "higmlhleblpmdogjccpmjlnilpmhohal", "dir": "apps/extension/dist", "build": "npm ci && npm run build" },
+    "cors-enabler":     { "repo": "ravitejakamalapuram/cors-enabler",     "id": "bfegjbdhenoahnnajgmlkcdkfcjgnjjc", "dir": "dist",           "build": "npm ci && npm run build" },
+    "session-transfer": { "repo": "ravitejakamalapuram/session-transfer", "id": "fnfmlchbfofjdfeibgdkcibfjjlfcefc", "dir": "extension/dist", "build": "cd extension && npm ci && npm run build" },
+    "StellarTab":       { "repo": "ravitejakamalapuram/StellarTab",       "id": "efpigokkcblmjdnameafogblekknbhdc", "dir": ".",              "build": "" },
+    "GitaVerses":       { "repo": "ravitejakamalapuram/GitaVerses",       "id": "hebmlallhbgfnjjcnilphllknhfoddnk", "dir": ".",              "build": "" },
+    "TeluguPanchangam": { "repo": "ravitejakamalapuram/TeluguPanchangam", "id": "obgpdlhkahmdiepklldjnnmfmbhmgenn", "dir": ".",              "build": "" },
+    "teleport-extension": { "repo": "ravitejakamalapuram/TelePort",       "id": "oimdkmacklcheogoakhdgilcedkcbikb", "dir": "chrome-extension", "build": "" }
+  }
+}
