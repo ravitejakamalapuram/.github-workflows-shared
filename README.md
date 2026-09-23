@@ -46,7 +46,7 @@ on:
 jobs:
   # For Android projects
   android-ci:
-    uses: YOUR_ORG/.github-workflows-shared/.github/workflows/android-ci.yml@main
+    uses: YOUR_ORG/.github-workflows-shared/.github/workflows/android-ci.yml@v1
     with:
       java-version: '17'
       run-tests: true
@@ -64,12 +64,12 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Setup Android
-        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@main
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@v1
         with:
           java-version: '17'
       
       - name: Run Tests
-        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/test@main
+        uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/test@v1
 ```
 
 ## 📦 Available Actions
@@ -128,7 +128,7 @@ Configuration defaults are provided in `config/`:
 Override in your workflow:
 
 ```yaml
-- uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@main
+- uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@v1
   with:
     java-version: '21'  # Override default (17)
     gradle-cache: 'false'
@@ -152,15 +152,13 @@ See `docs/examples/` for complete workflow examples:
 
 ## 🔄 Version Pinning
 
-Always pin to a specific version in production:
+Pin to the floating major tag. Every internal composite-action reference in this repo also uses `@v1`, so a consumer only picks up changes when a release is cut:
 
 ```yaml
-# Recommended: Pin to tag
-uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@v1.0.0
-
-# Development: Use main branch
-uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@main
+uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/chrome-extension-cd.yml@v1
 ```
+
+To release: merge to `main`, then push a semver tag (`git tag v1.2.1 && git push origin v1.2.1`). The `Move Major Version Tag` workflow moves `v1` to it. Do not pin consumers to `@main`.
 
 ## 🤝 Contributing
 
