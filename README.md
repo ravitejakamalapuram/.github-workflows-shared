@@ -184,3 +184,25 @@ MIT License - see LICENSE file for details.
 ---
 
 Made with ❤️ for consistent CI/CD across projects
+
+## 📤 Publishing any extension by name
+
+`config/chrome-extensions.json` lists every Chrome extension (store ID, repo, build command,
+output dir). `.github/workflows/chrome-extension-publish.yml` publishes one of them by name:
+
+```yaml
+jobs:
+  publish:
+    uses: ravitejakamalapuram/.github-workflows-shared/.github/workflows/chrome-extension-publish.yml@v1
+    with:
+      app: GitaVerses          # key in config/chrome-extensions.json
+      version: ''              # optional override; must exceed any version ever uploaded
+    secrets:
+      chrome-client-id: ${{ secrets.CWS_CLIENT_ID }}
+      chrome-client-secret: ${{ secrets.CWS_CLIENT_SECRET }}
+      chrome-refresh-token: ${{ secrets.CWS_REFRESH_TOKEN }}
+      checkout-token: ${{ secrets.PAT_FOR_WORKFLOWS }}   # needed for private app repos
+```
+
+One OAuth client and refresh token covers every item under the publisher, so a single repo
+holding those secrets can release all extensions.
