@@ -26,6 +26,10 @@ inputs:
     description: 'Auto-publish after upload'
     required: false
     default: 'true'
+  require-credentials:
+    description: 'Fail when any Chrome Web Store credential is missing instead of silently skipping the upload'
+    required: false
+    default: 'true'
 
 outputs:
   publish-status:
@@ -47,6 +51,28 @@ runs:
         echo "✅ ZIP file validated: $ZIP_PATH"
       shell: bash
     
+    - name: Check Credentials
+      env:
+        REQUIRE: ${{ inputs.require-credentials }}
+        HAS_ID: ${{ inputs.extension-id != '' }}
+        HAS_CLIENT_ID: ${{ inputs.client-id != '' }}
+        HAS_CLIENT_SECRET: ${{ inputs.client-secret != '' }}
+        HAS_REFRESH_TOKEN: ${{ inputs.refresh-token != '' }}
+      run: |
+        missing=""
+        [ "$HAS_ID" = "true" ] || missing="$missing extension-id"
+        [ "$HAS_CLIENT_ID" = "true" ] || missing="$missing client-id"
+        [ "$HAS_CLIENT_SECRET" = "true" ] || missing="$missing client-secret"
+        [ "$HAS_REFRESH_TOKEN" = "true" ] || missing="$missing refresh-token"
+        if [ -n "$missing" ]; then
+          if [ "$REQUIRE" = "true" ]; then
+            echo "::error::Chrome Web Store credentials missing:$missing. Set the repo secrets or pass require-credentials: 'false'."
+            exit 1
+          fi
+          echo "::warning::Chrome Web Store credentials missing:$missing. Upload will be skipped."
+        fi
+      shell: bash
+
     - name: Publish to Chrome Web Store
       id: publish
       if: inputs.extension-id != '' && inputs.client-id != '' && inputs.client-secret != '' && inputs.refresh-token != ''

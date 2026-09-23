@@ -45,6 +45,10 @@ runs:
     
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+      with:
+        # Logging accepted licenses makes `sdkmanager --licenses` exit 1 on current
+        # runner images ("6 of 7 SDK package licenses not accepted"), failing the job.
+        log-accepted-android-sdk-licenses: false
       
       
     - name: Grant execute permission for gradlew

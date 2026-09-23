@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: 'extension'
+      build-command:
+        description: 'Optional shell command that builds the extension (e.g. "npm run build" or "cd extension && npm ci && npm run build"). Required when extension-dir is a build output such as dist/.'
+        required: false
+        type: string
+        default: ''
       node-version:
         description: 'Node.js version'
         required: false
@@ -79,6 +84,13 @@ jobs:
           fi
         shell: bash
       
+      - name: Build Extension
+        if: inputs.build-command != ''
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        run: bash -euo pipefail -c "$BUILD_COMMAND"
+        shell: bash
+
       - name: Validate Extension
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@v1
         with:
