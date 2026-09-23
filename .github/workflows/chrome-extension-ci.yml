@@ -80,7 +80,7 @@ jobs:
         shell: bash
       
       - name: Validate Extension
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@v1
         with:
           extension-dir: ${{ inputs.extension-dir }}
           manifest-version: ${{ inputs.manifest-version }}
@@ -88,19 +88,19 @@ jobs:
       
       - name: Lint Code
         if: inputs.run-lint
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/lint@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/lint@v1
         with:
           extension-dir: ${{ inputs.extension-dir }}
       
       - name: Run Unit Tests
         if: inputs.run-unit-tests
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-unit@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-unit@v1
         with:
           coverage: 'false'
 
       - name: Package Extension
         id: package
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@v1
         with:
           extension-dir: ${{ inputs.extension-dir }}
           output-name: 'extension'
@@ -144,7 +144,7 @@ jobs:
           python-version: '3.11'
 
       - name: Run E2E Tests
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-e2e@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-e2e@v1
         with:
           test-script: ${{ inputs.e2e-test-script }}
           headless: ${{ inputs.e2e-headless }}

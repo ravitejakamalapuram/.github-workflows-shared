@@ -1,0 +1,29 @@
+name: Move Major Version Tag
+
+# Consumers pin `@v1`, and every internal composite-action reference in this repo
+# also uses `@v1`. Pushing a release tag like v1.2.3 moves `v1` to that commit,
+# so a release is the only thing that changes what consumers run.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  move-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Move major tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          MAJOR="${TAG%%.*}"
+          git tag -f "$MAJOR" "$TAG^{commit}"
+          git push -f origin "refs/tags/$MAJOR"
+          echo "Moved $MAJOR -> $TAG ($(git rev-parse --short "$TAG^{commit}"))"

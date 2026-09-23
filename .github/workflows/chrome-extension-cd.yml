@@ -73,14 +73,14 @@ jobs:
         shell: bash
       
       - name: Generate Changelog
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/changelog@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/changelog@v1
         with:
           output-file: 'CHANGELOG.md'
           format: 'markdown'
       
       - name: Bump Version
         id: version
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/version-bump@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/version-bump@v1
         with:
           bump-type: 'auto'
           tag-prefix: 'v'
@@ -101,14 +101,14 @@ jobs:
       
       - name: Package Extension
         id: package
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@v1
         with:
           extension-dir: ${{ inputs.extension-dir }}
           output-name: 'extension'
           include-source-maps: 'false'
       
       - name: Create GitHub Release
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/create-release@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/create-release@v1
         with:
           tag-name: ${{ steps.version.outputs.new-tag }}
           release-name: 'Release ${{ steps.version.outputs.new-tag }}'
@@ -117,7 +117,7 @@ jobs:
       
       - name: Publish to Chrome Web Store
         id: publish
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/publish-cws@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/publish-cws@v1
         with:
           extension-id: ${{ secrets.chrome-extension-id }}
           client-id: ${{ secrets.chrome-client-id }}

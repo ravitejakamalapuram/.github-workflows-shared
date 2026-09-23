@@ -53,6 +53,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ravitejakamalapuram/.github-workflows-shared
+          ref: v1
           path: .github-workflows-shared-temp
           
       - name: Validate Release Assets Compliance
@@ -62,21 +63,21 @@ jobs:
         shell: bash
       
       - name: Setup Android Environment
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/setup@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/setup@v1
         with:
           java-version: ${{ inputs.java-version }}
           gradle-cache: ${{ inputs.gradle-cache }}
       
       - name: Run Unit Tests
         if: inputs.run-tests
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/test@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/test@v1
         with:
           test-task: ${{ inputs.test-task }}
           upload-reports: 'true'
       
       - name: Validate Chrome Extension
         if: inputs.validate-extension && hashFiles(format('{0}/manifest.json', inputs.extension-dir)) != ''
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@v1
         with:
           extension-dir: ${{ inputs.extension-dir }}
           manifest-version: '3'

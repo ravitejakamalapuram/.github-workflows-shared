@@ -114,6 +114,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ravitejakamalapuram/.github-workflows-shared
+          ref: v1
           path: .github-workflows-shared-temp
           
       - name: Validate Release Assets Compliance
@@ -123,7 +124,7 @@ jobs:
         shell: bash
       
       - name: Setup Flutter Environment
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/setup@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/setup@v1
         with:
           flutter-channel: ${{ inputs.flutter-channel }}
           cache-pub: ${{ inputs.cache-pub }}
@@ -136,7 +137,7 @@ jobs:
       
       - name: Run Flutter Analyzer
         if: inputs.run-analyzer
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/analyze@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/analyze@v1
         with:
           fatal-warnings: ${{ inputs.fatal-warnings }}
           fatal-infos: ${{ inputs.fatal-infos }}
@@ -147,7 +148,7 @@ jobs:
       
       - name: Run Flutter Tests
         if: inputs.run-tests
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/test@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/flutter/test@v1
         with:
           coverage: ${{ inputs.coverage }}
           exclude-tags: ${{ inputs.exclude-tags }}
@@ -168,7 +169,7 @@ jobs:
       - name: Notify Slack of Failure
         if: failure() && inputs.slack-notify-failure
         continue-on-error: true
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/slack-notify@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/slack-notify@v1
         with:
           slack-webhook-url: ${{ secrets.slack-webhook-url }}
           status: 'failure'
