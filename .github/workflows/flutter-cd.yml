@@ -24,10 +24,9 @@ on:
         type: string
         default: '2'
       package-name:
-        description: 'Android application package name'
-        required: false
+        description: 'Android application package name (required)'
+        required: true
         type: string
-        default: 'com.invtracker.inv_tracker'
       update-dart-file:
         description: 'Path to Dart file to update with version (optional)'
         required: false
@@ -47,12 +46,12 @@ on:
         description: 'Runner type to use'
         required: false
         type: string
-        default: 'self-hosted'
+        default: 'ubuntu-latest'
       slack-app-name:
-        description: 'App name in Slack notifications'
+        description: 'App name in Slack notifications (defaults to the repository name)'
         required: false
         type: string
-        default: 'InvTrack'
+        default: ''
       slack-track:
         description: 'Deployment track in Slack notifications'
         required: false
@@ -217,10 +216,14 @@ jobs:
         env:
           UPDATE_DART_FILE: ${{ inputs.update-dart-file }}
         run: |
-          git add pubspec.yaml CHANGELOG.md fastlane/ app-metadata.json .app-metadata.json 2>/dev/null || true
+          # Add paths one at a time: a missing or ignored path (e.g. .app-metadata.json)
+          # makes a multi-path `git add` stage nothing at all.
+          for f in pubspec.yaml CHANGELOG.md fastlane/ app-metadata.json .app-metadata.json; do
+            if [ -e "$f" ] && ! git check-ignore -q "$f"; then git add "$f"; fi
+          done
           [ -n "$UPDATE_DART_FILE" ] && git add "$UPDATE_DART_FILE" 2>/dev/null || true
           git commit -m "chore(release): bump version to ${{ steps.version.outputs.new-version }}+${{ steps.version.outputs.new-build-number }} [skip-release]"
-          git pull --rebase origin main
+          git pull --rebase --autostash origin main
           git push origin main
         shell: bash
 
@@ -231,7 +234,7 @@ jobs:
           tag-name: v${{ steps.version.outputs.new-version }}
           release-name: 'Release v${{ steps.version.outputs.new-version }}'
           body: |
-            ## 📱 ${{ inputs.slack-app-name }} v${{ steps.version.outputs.new-version }}
+            ## 📱 ${{ inputs.slack-app-name || github.event.repository.name }} v${{ steps.version.outputs.new-version }}
 
             **Build Number:** ${{ steps.version.outputs.new-build-number }}
             **App Size:** ${{ steps.app_size.outputs.size-mb }} MB
@@ -247,7 +250,7 @@ jobs:
         with:
           slack-webhook-url: ${{ secrets.slack-webhook-url }}
           status: ${{ job.status }}
-          app-name: ${{ inputs.slack-app-name }}
+          app-name: ${{ inputs.slack-app-name || github.event.repository.name }}
           version: ${{ steps.version.outputs.new-version }}
           build-number: ${{ steps.version.outputs.new-build-number }}
           track: ${{ inputs.slack-track }}
@@ -354,9 +357,13 @@ jobs:
           "
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app-metadata.json .app-metadata.json 2>/dev/null || true
+          # Add paths one at a time: a missing or ignored path (e.g. .app-metadata.json)
+          # makes a multi-path `git add` stage nothing at all.
+          for f in app-metadata.json .app-metadata.json; do
+            if [ -e "$f" ] && ! git check-ignore -q "$f"; then git add "$f"; fi
+          done
           git commit -m "chore(release): update metadata to published [skip ci]" || true
-          git pull --rebase origin main
+          git pull --rebase --autostash origin main
           git push origin HEAD:main
         shell: bash
 
@@ -367,7 +374,7 @@ jobs:
         with:
           slack-webhook-url: ${{ secrets.slack-webhook-url }}
           status: ${{ job.status }}
-          app-name: ${{ inputs.slack-app-name }}
+          app-name: ${{ inputs.slack-app-name || github.event.repository.name }}
           version: ${{ steps.version.outputs.version }}
           track: ${{ inputs.slack-track }}
           size-mb: ${{ steps.app_size.outputs.size-mb }}
@@ -421,9 +428,13 @@ jobs:
           "
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app-metadata.json .app-metadata.json 2>/dev/null || true
+          # Add paths one at a time: a missing or ignored path (e.g. .app-metadata.json)
+          # makes a multi-path `git add` stage nothing at all.
+          for f in app-metadata.json .app-metadata.json; do
+            if [ -e "$f" ] && ! git check-ignore -q "$f"; then git add "$f"; fi
+          done
           git commit -m "chore(release): update metadata to published [skip ci]" || true
-          git pull --rebase origin main
+          git pull --rebase --autostash origin main
           git push origin HEAD:main
         shell: bash
 
@@ -434,5 +445,5 @@ jobs:
         with:
           slack-webhook-url: ${{ secrets.slack-webhook-url }}
           status: ${{ job.status }}
-          app-name: "${{ inputs.slack-app-name }} (Alpha -> Production)"
+          app-name: "${{ inputs.slack-app-name || github.event.repository.name }} (Alpha -> Production)"
           track: 'Production'

@@ -25,9 +25,16 @@ inputs:
     required: false
     default: '1.0'
   whats-new-dir:
-    description: 'Directory containing release notes (optional)'
+    description: 'Directory containing release notes (optional), e.g. distribution/whatsnew with whatsnew-en-US files'
     required: false
     default: ''
+  changes-not-sent-for-review:
+    description: >-
+      'true' leaves the change in Play Console for a person to send for review. Required
+      while the app has rejected changes pending (Play refuses automatic submission then).
+      'false' sends the release for review automatically.
+    required: false
+    default: 'true'
 
 outputs:
   upload-status:
@@ -66,7 +73,7 @@ runs:
         status: ${{ inputs.release-status }}
         userFraction: ${{ inputs.release-status == 'inProgress' && inputs.user-fraction || '' }}
         whatsNewDirectory: ${{ inputs.whats-new-dir }}
-        changesNotSentForReview: true
+        changesNotSentForReview: ${{ inputs.changes-not-sent-for-review == 'true' }}
     
     - name: Upload Summary
       if: always()

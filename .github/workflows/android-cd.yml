@@ -43,6 +43,16 @@ on:
         required: false
         type: string
         default: 'ubuntu-latest'
+      play-whats-new-dir:
+        description: 'Directory with Play release notes (whatsnew-<locale> files), optional'
+        required: false
+        type: string
+        default: ''
+      play-send-for-review:
+        description: 'Send the Play release for review automatically (fails while rejected changes are pending)'
+        required: false
+        type: boolean
+        default: false
     secrets:
       release-keystore-base64:
         description: 'Keystore base64 encoded'
@@ -169,6 +179,8 @@ jobs:
           aab-path: ${{ steps.build-aab.outputs.aab-path }}
           track: ${{ inputs.play-track }}
           release-status: 'completed'
+          whats-new-dir: ${{ inputs.play-whats-new-dir }}
+          changes-not-sent-for-review: ${{ inputs.play-send-for-review && 'false' || 'true' }}
 
       - name: Commit and Push Updates
         if: success() && inputs.deploy-to-play
@@ -205,8 +217,12 @@ jobs:
           fi
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app-metadata.json .app-metadata.json CHANGELOG.md 2>/dev/null || true
+          # Add paths one at a time: a missing or ignored path (e.g. .app-metadata.json)
+          # makes a multi-path `git add` stage nothing at all.
+          for f in app-metadata.json .app-metadata.json CHANGELOG.md; do
+            if [ -e "$f" ] && ! git check-ignore -q "$f"; then git add "$f"; fi
+          done
           git commit -m "chore(release): update metadata to published and changelog [skip ci]" || true
-          git pull --rebase origin main
+          git pull --rebase --autostash origin main
           git push origin HEAD:main
         shell: bash
