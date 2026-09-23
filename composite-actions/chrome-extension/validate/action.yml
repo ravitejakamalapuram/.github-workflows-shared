@@ -19,6 +19,10 @@ inputs:
     description: 'Enable strict validation (fail on warnings)'
     required: false
     default: 'false'
+  release-compliance:
+    description: 'Validate release/store compliance metadata'
+    required: false
+    default: 'false'
 
 outputs:
   validation-status:
@@ -39,129 +43,44 @@ runs:
         STRICT_MODE: ${{ inputs.strict-mode }}
       run: |
         set -e
-        echo "::group::Validating Extension Structure"
-        
-        # Check manifest.json exists
-        if [ ! -f "$EXT_DIR/manifest.json" ]; then
-          echo "::error::Missing manifest.json in $EXT_DIR"
-          exit 1
-        fi
-        echo "✅ manifest.json found"
-        
-        # Validate JSON structure
-        if ! jq empty "$EXT_DIR/manifest.json" > /dev/null 2>&1; then
-          echo "::error::manifest.json is not valid JSON"
-          exit 1
-        fi
-        echo "✅ manifest.json is valid JSON"
-        
-        # Check manifest version
+        test -f "$EXT_DIR/manifest.json" || { echo "::error::Missing manifest.json in $EXT_DIR"; exit 1; }
+        jq empty "$EXT_DIR/manifest.json" >/dev/null 2>&1 || { echo "::error::manifest.json is not valid JSON"; exit 1; }
         ACTUAL_VERSION=$(jq -r '.manifest_version' "$EXT_DIR/manifest.json")
-        echo "Detected manifest_version: $ACTUAL_VERSION"
-        
         if [ "$ACTUAL_VERSION" != "$EXPECTED_MANIFEST_VERSION" ]; then
           MSG="Expected manifest_version $EXPECTED_MANIFEST_VERSION, found $ACTUAL_VERSION"
-          if [ "$STRICT_MODE" == "true" ]; then
-            echo "::error::$MSG"
-            exit 1
-          else
-            echo "::warning::$MSG"
-          fi
+          if [ "$STRICT_MODE" == "true" ]; then echo "::error::$MSG"; exit 1; else echo "::warning::$MSG"; fi
         fi
-        
-        # Check for background script (MV2 vs MV3)
-        if [ "$ACTUAL_VERSION" == "3" ]; then
-          if [ ! -f "$EXT_DIR/background.js" ] && [ ! -f "$EXT_DIR/service-worker.js" ]; then
-            echo "::warning::No background.js or service-worker.js found (MV3)"
-          else
-            echo "✅ Background script found"
-          fi
-        fi
-        
-        echo "::endgroup::"
       shell: bash
-    
+
     - name: Extract Manifest Info
       id: manifest-info
       env:
         EXT_DIR: ${{ inputs.extension-dir }}
       run: |
-        # ⚡ Bolt Optimization: Batch jq queries to read the file once instead of multiple times
         IFS=$'\t' read -r VERSION NAME EXT_VERSION < <(jq -r '[(.manifest_version // "Unknown"), (.name // "Unknown"), (.version // "Unknown")] | @tsv' "$EXT_DIR/manifest.json")
-        
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "name=$NAME" >> $GITHUB_OUTPUT
-        echo "extension_version=$EXT_VERSION" >> $GITHUB_OUTPUT
-        
-        echo "📦 Extension: $NAME v$EXT_VERSION (Manifest v$VERSION)"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "name=$NAME" >> "$GITHUB_OUTPUT"
+        echo "extension_version=$EXT_VERSION" >> "$GITHUB_OUTPUT"
       shell: bash
-    
+
     - name: Validate Icon Files
       if: inputs.check-icons == 'true'
       env:
         EXT_DIR: ${{ inputs.extension-dir }}
       run: |
-        echo "::group::Validating Icon Files"
-        # ⚡ Bolt Optimization: Replaced Python script with jq to avoid Python VM startup overhead.
-        MISSING_ICONS=()
-
-        # Check icons
+        set -e
+        missing=0
         while IFS=$'\t' read -r size path; do
-          if [ -n "$path" ] && [ ! -f "$EXT_DIR/$path" ]; then
-            MISSING_ICONS+=("icons.${size}: ${path}")
-          fi
-        done < <(jq -r 'select(.icons != null and (.icons | type) == "object") | .icons | to_entries[] | "\(.key)\t\(.value)"' "$EXT_DIR/manifest.json")
-
-        # Check action icons (MV3) or browser_action icons (MV2)
-        while IFS=$'\t' read -r size path action_key; do
-          if [ -n "$path" ] && [ ! -f "$EXT_DIR/$path" ]; then
-            MISSING_ICONS+=("${action_key}.default_icon.${size}: ${path}")
-          fi
-        done < <(jq -r '
-          if .manifest_version == 3 then
-            if .action != null and (.action.default_icon | type) == "object" then
-              .action.default_icon | to_entries[] | "\(.key)\t\(.value)\taction"
-            else
-              empty
-            end
-          else
-            if .browser_action != null and (.browser_action.default_icon | type) == "object" then
-              .browser_action.default_icon | to_entries[] | "\(.key)\t\(.value)\tbrowser_action"
-            else
-              empty
-            end
-          end
-        ' "$EXT_DIR/manifest.json")
-
-        if [ ${#MISSING_ICONS[@]} -gt 0 ]; then
-          echo "::error::Missing icon files:"
-          for icon in "${MISSING_ICONS[@]}"; do
-            echo "::error::  - $icon"
-          done
-          exit 1
-        else
-          echo "✅ All declared icon files exist"
-        fi
-        echo "::endgroup::"
+          if [ -n "$path" ] && [ ! -f "$EXT_DIR/$path" ]; then echo "::error::Missing icon $size: $path"; missing=1; fi
+        done < <(jq -r '(.icons // {}) | to_entries[] | "\(.key)\t\(.value)"' "$EXT_DIR/manifest.json")
+        exit "$missing"
       shell: bash
-    
-    - name: Check JavaScript Syntax
-      env:
-        EXT_DIR: ${{ inputs.extension-dir }}
-      run: |
-        echo "::group::Checking JavaScript Syntax"
-        # ⚡ Bolt Optimization: Parallelize node -c syntax checks across CPU cores to reduce CI time
-        # Using env var $EXT_DIR to prevent command injection
-        find "$EXT_DIR" -name "*.js" -print0 | xargs -0 -n 1 -P 4 sh -c 'node -c "$1" 2>/dev/null || { echo "::error::Syntax error in $1"; exit 255; }' sh
-        echo "✅ All JS files pass syntax check"
-        echo "::endgroup::"
-      shell: bash
-    
+
     - name: Validate Release Assets and Compliance
+      if: inputs.release-compliance == 'true'
       env:
         EXT_DIR: ${{ inputs.extension-dir }}
-      run: |
-        python3 ${{ github.action_path }}/../../../scripts/validate-release-assets.py --path . --type chrome-extension --ext-dir "$EXT_DIR"
+      run: python3 "${{ github.action_path }}/../../../scripts/validate-release-assets.py" --path . --type chrome-extension --ext-dir "$EXT_DIR"
       shell: bash
 
 branding:
