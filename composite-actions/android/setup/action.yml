@@ -46,8 +46,10 @@ runs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
-        # Logging accepted licenses makes `sdkmanager --licenses` exit 1 on current
-        # runner images ("6 of 7 SDK package licenses not accepted"), failing the job.
+        # The action's default packages ("tools platform-tools") include the legacy
+        # "tools" package, which no longer exists for cmdline-tools 16+ on current
+        # runners, so `sdkmanager tools` exits 1 and fails every Android job.
+        packages: 'platform-tools'
         log-accepted-android-sdk-licenses: false
       
       
