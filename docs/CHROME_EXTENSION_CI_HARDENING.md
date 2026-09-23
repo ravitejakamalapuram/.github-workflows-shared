@@ -2,7 +2,7 @@
 
 The reusable Chrome Extension workflow currently combines build/test validation with release-store compliance checks. Those concerns should be independently selectable so projects can adopt CI early while retaining strict release gates.
 
-Known follow-ups:
+known follow-ups remain:
 
 - make release-compliance validation opt-in for reusable CI consumers;
 - remove assumptions that `jq` and Python are preinstalled or provide explicit setup steps;

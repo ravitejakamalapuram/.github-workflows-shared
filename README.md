@@ -78,29 +78,29 @@ jobs:
 
 | Action | Description | Usage |
 |--------|-------------|-------|
-| `android/setup` | Setup JDK + Android SDK | [Docs](composite-actions/android/setup/action.yml) |
-| `android/test` | Run unit tests | [Docs](composite-actions/android/test/action.yml) |
+| `android/setup` | Setup JDK + Android SDK + Gradle caching | [Docs](composite-actions/android/setup/action.yml) |
+| `android/test` | Run unit tests with reporting | [Docs](composite-actions/android/test/action.yml) |
 | `android/build-apk` | Build APK | [Docs](composite-actions/android/build-apk/action.yml) |
 | `android/build-bundle` | Build AAB | [Docs](composite-actions/android/build-bundle/action.yml) |
-| `android/deploy-play` | Deploy to Play Store | [Docs](composite-actions/android/deploy-play/action.yml) |
+| `android/deploy-play` | Deploy to Google Play Store | [Docs](composite-actions/android/deploy-play/action.yml) |
 
 ### Flutter
 
 | Action | Description | Usage |
 |--------|-------------|-------|
-| `flutter/setup` | Setup Flutter SDK | [Docs](composite-actions/flutter/setup/action.yml) |
-| `flutter/analyze` | Run analyzer + arch checks | [Docs](composite-actions/flutter/analyze/action.yml) |
+| `flutter/setup` | Setup Flutter SDK with pub cache recovery | [Docs](composite-actions/flutter/setup/action.yml) |
+| `flutter/analyze` | Run analyzer + architecture checks | [Docs](composite-actions/flutter/analyze/action.yml) |
 | `flutter/test` | Run tests with coverage | [Docs](composite-actions/flutter/test/action.yml) |
 | `flutter/build-android` | Build Android (APK/AAB) | [Docs](composite-actions/flutter/build-android/action.yml) |
-| `flutter/build-ios` | Build iOS | [Docs](composite-actions/flutter/build-ios/action.yml) |
+| `flutter/build-ios` | Build iOS with code signing support | [Docs](composite-actions/flutter/build-ios/action.yml) |
 
 ### Chrome Extension
 
 | Action | Description | Usage |
 |--------|-------------|-------|
-| `chrome-extension/validate` | Validate manifest & files | [Docs](composite-actions/chrome-extension/validate/action.yml) |
-| `chrome-extension/lint` | ESLint checks | [Docs](composite-actions/chrome-extension/lint/action.yml) |
-| `chrome-extension/test-unit` | Run unit tests | [Docs](composite-actions/chrome-extension/test-unit/action.yml) |
+| `chrome-extension/validate` | Manifest & file validation (MV2/MV3) | [Docs](composite-actions/chrome-extension/validate/action.yml) |
+| `chrome-extension/lint` | ESLint code quality checks | [Docs](composite-actions/chrome-extension/lint/action.yml) |
+| `chrome-extension/test-unit` | JavaScript unit tests | [Docs](composite-actions/chrome-extension/test-unit/action.yml) |
 | `chrome-extension/test-e2e` | Playwright E2E tests | [Docs](composite-actions/chrome-extension/test-e2e/action.yml) |
 | `chrome-extension/package` | Create ZIP package | [Docs](composite-actions/chrome-extension/package/action.yml) |
 | `chrome-extension/publish-cws` | Publish to Chrome Web Store | [Docs](composite-actions/chrome-extension/publish-cws/action.yml) |
@@ -109,9 +109,11 @@ jobs:
 
 | Action | Description | Usage |
 |--------|-------------|-------|
-| `common/changelog` | Generate changelog | [Docs](composite-actions/common/changelog/action.yml) |
-| `common/version-bump` | Semantic versioning | [Docs](composite-actions/common/version-bump/action.yml) |
-| `common/create-release` | Create GitHub release | [Docs](composite-actions/common/create-release/action.yml) |
+| `common/changelog` | Generate changelog from commits | [Docs](composite-actions/common/changelog/action.yml) |
+| `common/version-bump` | Semantic versioning with auto-detection | [Docs](composite-actions/common/version-bump/action.yml) |
+| `common/create-release` | Create GitHub release with artifacts | [Docs](composite-actions/common/create-release/action.yml) |
+| `common/size-check` | Verify build artifact size limits | [Docs](composite-actions/common/size-check/action.yml) |
+| `common/slack-notify` | Send CI/CD status notifications | [Docs](composite-actions/common/slack-notify/action.yml) |
 | `validation/detect-changes` | Path-based change detection | [Docs](composite-actions/validation/detect-changes/action.yml) |
 
 ## ⚙️ Configuration
@@ -134,13 +136,16 @@ Override in your workflow:
 
 ## 📚 Documentation
 
-- [Migration Guide](docs/MIGRATION.md) - Move existing projects
-- [Contributing Guide](docs/CONTRIBUTING.md) - Add new actions
-- [Examples](docs/examples/) - Real-world usage examples
+- [Migration Guide](docs/MIGRATION.md) - Move existing projects to centralized workflows
+- [Contributing Guide](docs/CONTRIBUTING.md) - Add new actions or contribute improvements
+- [Security Best Practices](docs/SECURITY.md) - Action security guidance
+- [Chrome Extension CI Hardening](docs/CHROME_EXTENSION_CI_HARDENING.md) - Planned hardening work
+- [Examples](docs/examples/) - Real-world workflow examples
 
 ## 🎓 Examples
 
 See `docs/examples/` for complete workflow examples:
+
 - [Android App](docs/examples/android-example.yml)
 - [Flutter App](docs/examples/flutter-example.yml)
 - [Chrome Extension](docs/examples/extension-example.yml)
@@ -161,6 +166,14 @@ uses: YOUR_ORG/.github-workflows-shared/composite-actions/android/setup@main
 
 See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
+## 📝 Release Standards
+
+This repository supports release-readiness standards for consumer projects:
+
+- [Android App Release Standards](standards/android-app-rules.md)
+- [Chrome Extension Release Standards](standards/chrome-extension-rules.md)
+- [Flutter App Release Standards](standards/flutter-app-rules.md)
+
 ## 📝 License
 
 MIT License - see LICENSE file for details.
@@ -173,4 +186,3 @@ MIT License - see LICENSE file for details.
 ---
 
 Made with ❤️ for consistent CI/CD across projects
-

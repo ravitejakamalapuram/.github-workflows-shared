@@ -20,7 +20,7 @@ Thank you for contributing to our centralized GitHub Actions repository!
    ```
 3. **Create a feature branch**:
    ```bash
-   git checkout -b feature/add-new-action
+   git checkout -b feat/add-new-action
    ```
 
 ## ➕ Adding New Actions
@@ -72,6 +72,8 @@ runs:
   steps:
     - name: Descriptive Step Name
       id: step-id
+      env:
+        INPUT_VALUE: ${{ inputs.input-name }}
       run: |
         echo "Your script here"
       shell: bash
@@ -134,6 +136,8 @@ runs:
     
     - name: Install Tool
       id: install
+      env:
+        TOOL_VERSION: ${{ inputs.tool-version }}
       run: |
         echo "::group::Installing tool v${{ inputs.tool-version }}"
         
@@ -334,11 +338,51 @@ When adding an action:
 
 ## 🔒 Security
 
+### Input Handling
+
+Always map GitHub Actions inputs to environment variables before using them in shell scripts:
+
+```yaml
+steps:
+  - name: Example Step
+    env:
+      INPUT_VALUE: ${{ inputs.my-input }}
+      PACKAGE_NAME: ${{ inputs.package-name }}
+    run: |
+      echo "Processing: $INPUT_VALUE"
+      ./gradlew build -PpackageName=$PACKAGE_NAME
+    shell: bash
+```
+
+**Benefits:**
+- ✅ Prevents command injection vulnerabilities
+- ✅ Separates template expansion from shell execution
+- ✅ Makes code more readable and maintainable
+- ✅ Follows GitHub Actions security best practices
+
+### Avoid Direct Interpolation
+
+Do not interpolate inputs directly in shell scripts:
+
+```yaml
+# ❌ DON'T DO THIS
+steps:
+  - name: Unsafe Example
+    run: |
+      echo "Processing: ${{ inputs.my-input }}"
+      ./gradlew build -PpackageName=${{ inputs.package-name }}
+    shell: bash
+```
+
+### Other Security Guidance
+
 - Never commit secrets or credentials
 - Validate all user inputs
 - Use `secrets` context for sensitive data
 - Don't log sensitive information
 - Review dependencies regularly
+- Do not disable SSL verification in production workflows
+- Prefer `jq` over Python for light JSON transformations where possible
 
 ## 💬 Getting Help
 
@@ -353,4 +397,3 @@ By contributing, you agree that your contributions will be licensed under the sa
 ---
 
 Thank you for making our CI/CD better! 🎉
-

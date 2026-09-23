@@ -2,7 +2,7 @@
 
 ## Input Handling in GitHub Actions
 
-### ✅ **Recommended: Environment Variables**
+### ✅ Recommended: Environment Variables
 
 Always map GitHub Actions inputs to environment variables before using them in shell scripts:
 
@@ -24,7 +24,7 @@ steps:
 - ✅ Makes code more readable and maintainable
 - ✅ Follows GitHub Actions security best practices
 
-### ⚠️ **Not Recommended: Direct Interpolation**
+### ⚠️ Not Recommended: Direct Interpolation
 
 Avoid direct input interpolation in shell scripts:
 
@@ -46,54 +46,21 @@ steps:
 
 ## Current Status
 
-### Fixed Actions (11)
-The following actions have been updated to use environment variables for all inputs:
-
-1. `android/build-apk` - ✅ Secured credentials and all inputs
-2. `android/build-bundle` - ✅ Secured credentials and all inputs
-3. `android/test` - ✅ Secured all test parameters
-4. `android/deploy-play` - ✅ Secured deployment parameters
-5. `chrome-extension/package` - ✅ Already secured (PR #24)
-6. `chrome-extension/test-e2e` - ✅ Already secured (PR #18)
-
-### Remaining Actions (32 warnings)
-
-The following actions still use direct input interpolation but are **low risk** as they:
-- Use inputs for non-sensitive data (file paths, flags, numbers)
-- Are used in controlled environments
-- Don't execute user-provided code directly
-
-**Chrome Extension (11 warnings):**
-- `lint` - Uses config paths and flags
-- `publish-cws` - Uses extension parameters
-- `test-unit` - Uses test configuration
-- `validate` - Uses validation parameters
-
-**Common Utilities (8 warnings):**
-- `changelog` - Uses git parameters
-- `create-release` - Uses release metadata
-- `size-check` - Uses size thresholds
-- `slack-notify` - Uses notification parameters
-- `version-bump` - Uses version numbers
-
-**Flutter (13 warnings):**
-- `analyze` - Uses analysis flags
-- `build-android` - Uses build parameters
-- `build-ios` - Uses build parameters
-- `setup` - Uses Flutter version
-- `test` - Uses test parameters
-- `version-bump` - Uses version parameters
+All composite actions and reusable workflows in this repository should use environment variables for inputs in shell steps. If an action still relies on direct `${{ inputs.* }}` interpolation inside `run:` blocks, it should be treated as a fix-it-later security concern and corrected when that action is next modified.
 
 ## Recommendations
 
 ### For New Actions
+
 - Always use environment variables for inputs
 - Never use `eval` with user inputs
-- Use `jq` instead of `python3` for JSON parsing
+- Prefer `jq` over `python3` for JSON parsing in CI scripts where practical
 - Map all inputs to env vars in the `env:` block
+- Avoid disabling SSL verification in production workflows unless the environment requires it
 
 ### For Existing Actions
-The remaining warnings can be addressed in future updates when those actions are modified for other reasons. They pose minimal security risk in their current form.
+
+Any remaining warnings should be resolved when those actions are modified for other reasons. In the meantime, prefer migrating them to environment-variable usage as part of normal maintenance rather than leaving raw interpolation in place.
 
 ## Security Scanning
 
