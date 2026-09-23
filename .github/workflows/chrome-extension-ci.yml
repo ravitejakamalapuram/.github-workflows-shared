@@ -12,7 +12,7 @@ on:
         description: 'Node.js version'
         required: false
         type: string
-        default: '20'
+        default: '22'
       manifest-version:
         description: 'Expected manifest version (2 or 3)'
         required: false
@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: 'false'
+      release-compliance:
+        description: 'Run Chrome Web Store release compliance validation'
+        required: false
+        type: boolean
+        default: false
       run-lint:
         description: 'Run ESLint checks'
         required: false
@@ -59,52 +64,42 @@ jobs:
     name: Validate & Test
     runs-on: ${{ inputs.runner-type }}
     timeout-minutes: 20
-    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
           cache: ${{ (hashFiles('package-lock.json') != '' || hashFiles('npm-shrinkwrap.json') != '' || hashFiles('yarn.lock') != '' || hashFiles('pnpm-lock.yaml') != '') && 'npm' || '' }}
-      
       - name: Install Dependencies
         run: |
-          if [ -f "package-lock.json" ]; then
-            npm ci
-          elif [ -f "package.json" ]; then
-            npm install
-          fi
+          if [ -f "package-lock.json" ]; then npm ci; elif [ -f "package.json" ]; then npm install; fi
         shell: bash
-      
       - name: Validate Extension
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@fix/chrome-ci-ts-and-release-gates
         with:
           extension-dir: ${{ inputs.extension-dir }}
           manifest-version: ${{ inputs.manifest-version }}
           strict-mode: ${{ inputs.strict-mode }}
-      
+          check-icons: ${{ inputs.release-compliance }}
+          release-compliance: ${{ inputs.release-compliance }}
       - name: Lint Code
         if: inputs.run-lint
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/lint@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/lint@fix/chrome-ci-ts-and-release-gates
         with:
           extension-dir: ${{ inputs.extension-dir }}
-      
       - name: Run Unit Tests
         if: inputs.run-unit-tests
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-unit@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-unit@fix/chrome-ci-ts-and-release-gates
         with:
           coverage: 'false'
-
       - name: Package Extension
         id: package
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/package@fix/chrome-ci-ts-and-release-gates
         with:
           extension-dir: ${{ inputs.extension-dir }}
           output-name: 'extension'
-
       - name: Upload Package Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -118,33 +113,23 @@ jobs:
     needs: ci
     if: inputs.run-e2e-tests
     timeout-minutes: 20
-    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: ${{ (hashFiles('package-lock.json') != '' || hashFiles('npm-shrinkwrap.json') != '' || hashFiles('yarn.lock') != '' || hashFiles('pnpm-lock.yaml') != '') && 'npm' || '' }}
-      
       - name: Install Dependencies
         run: |
-          if [ -f "package-lock.json" ]; then
-            npm ci
-          elif [ -f "package.json" ]; then
-            npm install
-          fi
+          if [ -f "package-lock.json" ]; then npm ci; elif [ -f "package.json" ]; then npm install; fi
         shell: bash
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Run E2E Tests
-        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-e2e@main
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-e2e@fix/chrome-ci-ts-and-release-gates
         with:
           test-script: ${{ inputs.e2e-test-script }}
           headless: ${{ inputs.e2e-headless }}
