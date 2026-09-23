@@ -38,6 +38,11 @@ on:
         required: false
         type: string
         default: 'chrome-extension'
+      run-ci-gate:
+        description: 'Run unit tests before anything is tagged, released or uploaded'
+        required: false
+        type: boolean
+        default: true
       runner-type:
         description: 'Runner type to use'
         required: false
@@ -90,6 +95,13 @@ jobs:
         with:
           java-version: ${{ inputs.java-version }}
       
+      # Release gate: nothing is tagged, released or uploaded unless unit tests pass.
+      - name: Gate - Unit Tests
+        if: inputs.run-ci-gate
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/android/test@v1
+        with:
+          test-task: 'testDebugUnitTest'
+
       - name: Generate Changelog
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/changelog@v1
         with:

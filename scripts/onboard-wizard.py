@@ -38,15 +38,11 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
     def send_json_response(self, data, status=200):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode('utf-8'))
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
 
     def do_GET(self):
@@ -207,9 +203,9 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
                 return
             
             # Simple security check to make sure it's inside git-personal folder
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-            abs_file_path = os.path.abspath(file_path)
-            if not abs_file_path.startswith(base_dir):
+            base_dir = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            abs_file_path = os.path.realpath(file_path)
+            if os.path.commonpath([base_dir, abs_file_path]) != base_dir:
                 self.send_response(403)
                 self.end_headers()
                 self.wfile.write(b"Forbidden access")
@@ -242,8 +238,19 @@ class WebConsoleHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"404 Not Found")
 
+    def _is_cross_origin(self):
+        # Browsers send Origin on cross-site requests. Only this wizard's own page may
+        # call the API; anything else (a random website hitting localhost) is refused.
+        origin = self.headers.get('Origin')
+        return origin is not None and origin not in (
+            f"http://localhost:{SERVER_PORT}", f"http://127.0.0.1:{SERVER_PORT}")
+
     def do_POST(self):
         global SERVER_CLIENT_ID, SERVER_CLIENT_SECRET, OAUTH_STATE
+        if self._is_cross_origin():
+            self.send_response(403)
+            self.end_headers()
+            return
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
 

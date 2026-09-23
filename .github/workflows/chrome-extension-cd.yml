@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: ''
+      run-ci-gate:
+        description: 'Validate the extension and run unit tests before anything is tagged or uploaded'
+        required: false
+        type: boolean
+        default: true
       node-version:
         description: 'Node.js version'
         required: false
@@ -77,6 +82,27 @@ jobs:
           fi
         shell: bash
       
+      # Release gate: nothing is tagged, released or uploaded unless the extension
+      # validates and its unit tests pass on exactly this commit.
+      - name: Gate - Build Extension
+        if: inputs.run-ci-gate && inputs.build-command != ''
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        run: bash -euo pipefail -c "$BUILD_COMMAND"
+        shell: bash
+
+      - name: Gate - Validate Extension
+        if: inputs.run-ci-gate
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/validate@v1
+        with:
+          extension-dir: ${{ inputs.extension-dir }}
+
+      - name: Gate - Unit Tests
+        if: inputs.run-ci-gate
+        uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/test-unit@v1
+        with:
+          coverage: 'false'
+
       - name: Generate Changelog
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/common/changelog@v1
         with:
