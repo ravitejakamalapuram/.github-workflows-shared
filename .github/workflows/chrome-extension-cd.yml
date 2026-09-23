@@ -82,6 +82,25 @@ jobs:
           fi
         shell: bash
       
+      - name: Gate - Store Credentials
+        env:
+          HAS_ID: ${{ secrets.chrome-extension-id != '' }}
+          HAS_CLIENT_ID: ${{ secrets.chrome-client-id != '' }}
+          HAS_CLIENT_SECRET: ${{ secrets.chrome-client-secret != '' }}
+          HAS_REFRESH_TOKEN: ${{ secrets.chrome-refresh-token != '' }}
+        run: |
+          # Fail before tagging: a release that can't upload must not burn a version.
+          missing=""
+          [ "$HAS_ID" = "true" ] || missing="$missing chrome-extension-id"
+          [ "$HAS_CLIENT_ID" = "true" ] || missing="$missing chrome-client-id"
+          [ "$HAS_CLIENT_SECRET" = "true" ] || missing="$missing chrome-client-secret"
+          [ "$HAS_REFRESH_TOKEN" = "true" ] || missing="$missing chrome-refresh-token"
+          if [ -n "$missing" ]; then
+            echo "::error::Chrome Web Store secrets missing:$missing. Set them (scripts/set-cws-secrets.sh) before releasing."
+            exit 1
+          fi
+        shell: bash
+
       # Release gate: nothing is tagged, released or uploaded unless the extension
       # validates and its unit tests pass on exactly this commit.
       - name: Gate - Build Extension
