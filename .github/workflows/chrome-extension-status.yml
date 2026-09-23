@@ -1,0 +1,83 @@
+name: Reusable Chrome Web Store Status
+
+# Reports the review/publish state of one or more Chrome Web Store items via the
+# CWS API v2 (publishers.items.fetchStatus). One OAuth client + refresh token for
+# the publisher can read every item it owns, so a single run covers all apps.
+on:
+  workflow_call:
+    inputs:
+      publisher-id:
+        description: 'Chrome Web Store publisher ID'
+        required: true
+        type: string
+      extension-ids:
+        description: 'Space-separated list of "name=itemId" pairs (or bare item IDs)'
+        required: true
+        type: string
+    secrets:
+      chrome-client-id:
+        required: true
+      chrome-client-secret:
+        required: true
+      chrome-refresh-token:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    name: Chrome Web Store status
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch item status
+        env:
+          PUBLISHER_ID: ${{ inputs.publisher-id }}
+          ITEMS: ${{ inputs.extension-ids }}
+          CLIENT_ID: ${{ secrets.chrome-client-id }}
+          CLIENT_SECRET: ${{ secrets.chrome-client-secret }}
+          REFRESH_TOKEN: ${{ secrets.chrome-refresh-token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN_JSON=$(curl -sS --fail-with-body https://oauth2.googleapis.com/token \
+            -d client_id="$CLIENT_ID" -d client_secret="$CLIENT_SECRET" \
+            -d refresh_token="$REFRESH_TOKEN" -d grant_type=refresh_token) || {
+            echo "::error::Token exchange failed (refresh token expired or revoked?): $(echo "$TOKEN_JSON" | jq -r '.error_description // .error // .' 2>/dev/null)"
+            exit 1
+          }
+          ACCESS_TOKEN=$(echo "$TOKEN_JSON" | jq -r .access_token)
+          echo "::add-mask::$ACCESS_TOKEN"
+
+          {
+            echo "## Chrome Web Store status"
+            echo
+            echo "| App | Published | Published version | In review / submitted | Submitted version | Taken down | Warned |"
+            echo "|---|---|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          for entry in $ITEMS; do
+            name="${entry%%=*}"; id="${entry#*=}"
+            resp=$(curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
+              "https://chromewebstore.googleapis.com/v2/publishers/$PUBLISHER_ID/items/$id:fetchStatus") || true
+            if echo "$resp" | jq -e '.error' >/dev/null 2>&1; then
+              msg=$(echo "$resp" | jq -r '.error.message')
+              echo "::warning::$name ($id): $msg"
+              echo "| $name | error | $msg | | | | |" >> "$GITHUB_STEP_SUMMARY"
+              failed=1; continue
+            fi
+            row=$(echo "$resp" | jq -r --arg n "$name" '[
+              $n,
+              (.publishedItemRevisionStatus.state // "—"),
+              (.publishedItemRevisionStatus.distributionChannels[0].crxVersion // "—"),
+              (.submittedItemRevisionStatus.state // "—"),
+              (.submittedItemRevisionStatus.distributionChannels[0].crxVersion // "—"),
+              (.takenDown // false | tostring),
+              (.warned // false | tostring)
+            ] | "| " + join(" | ") + " |"')
+            echo "$row" >> "$GITHUB_STEP_SUMMARY"
+            echo "STATUS $row"
+          done
+          exit $failed
