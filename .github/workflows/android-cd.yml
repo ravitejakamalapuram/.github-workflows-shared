@@ -96,9 +96,26 @@ jobs:
       
       - name: Calculate Android Version Code
         id: android-version
+        env:
+          NEW_TAG: ${{ steps.version.outputs.new-tag }}
         run: |
-          CODE=$(git rev-list --count HEAD)
-          echo "code=$CODE" >> $GITHUB_OUTPUT
+          # Derive the version code from the release tag so it always increases:
+          # MAJOR * 1000000 + MINOR * 1000 + PATCH (v1.5.18 -> 1005018).
+          # Do not use `git rev-list --count HEAD`: it is lower than codes already on Play.
+          VERSION="${NEW_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "::error::Cannot derive versionCode from tag '$NEW_TAG'"
+            exit 1
+          fi
+          if (( MINOR > 999 || PATCH > 999 )); then
+            echo "::error::MINOR and PATCH must be <= 999 to keep versionCode monotonic (tag '$NEW_TAG')"
+            exit 1
+          fi
+          CODE=$((10#$MAJOR * 1000000 + 10#$MINOR * 1000 + 10#$PATCH))
+          echo "Version: $VERSION -> Version Code: $CODE"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Build Release APK
@@ -190,5 +207,6 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app-metadata.json .app-metadata.json CHANGELOG.md 2>/dev/null || true
           git commit -m "chore(release): update metadata to published and changelog [skip ci]" || true
-          git push origin HEAD:main || true
+          git pull --rebase origin main
+          git push origin HEAD:main
         shell: bash

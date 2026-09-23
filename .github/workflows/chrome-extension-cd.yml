@@ -116,7 +116,7 @@ jobs:
           files: ${{ steps.package.outputs.package-path }}
       
       - name: Publish to Chrome Web Store
-        continue-on-error: true
+        id: publish
         uses: ravitejakamalapuram/.github-workflows-shared/composite-actions/chrome-extension/publish-cws@main
         with:
           extension-id: ${{ secrets.chrome-extension-id }}
@@ -161,5 +161,6 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app-metadata.json .app-metadata.json "$EXTENSION_DIR/manifest.json" CHANGELOG.md 2>/dev/null || true
           git commit -m "chore(release): update manifest version and metadata to published [skip ci]" || true
-          git push origin HEAD:main || true
+          git pull --rebase origin main
+          git push origin HEAD:main
         shell: bash
